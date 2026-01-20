@@ -64,7 +64,15 @@ class TTSService {
 
     // 이미 해당 채널에 연결되어 있으면 재사용
     if (this.currentVoiceChannelId === voiceChannelId && this.currentConnection) {
-      return { connection: this.currentConnection };
+      // 연결 상태 확인
+      const state = this.currentConnection.state.status;
+      if (state === VoiceConnectionStatus.Ready || state === VoiceConnectionStatus.Signalling || state === VoiceConnectionStatus.Connecting) {
+        return { connection: this.currentConnection };
+      }
+      // 연결이 끊어진 상태면 초기화
+      console.log(`[TTS] 기존 연결이 끊어져 있음. 재연결 시도...`);
+      this.currentConnection = null;
+      this.currentVoiceChannelId = null;
     }
 
     const voiceChannel = await this.client.channels.fetch(voiceChannelId);
@@ -76,7 +84,37 @@ class TTSService {
       channelId: voiceChannel.id,
       guildId: guild.id,
       adapterCreator: guild.voiceAdapterCreator,
-      selfDeaf: false,
+      selfDeaf: true, // 헤드셋 음소거로 다른 사람들의 말을 듣지 않음 (프라이버시)
+    });
+
+    // 연결 상태 변화 감지
+    connection.on(VoiceConnectionStatus.Disconnected, async () => {
+      console.log(`[TTS] 음성 채널 연결 끊김 감지`);
+      // 5초 내에 재연결 시도, 실패하면 정리
+      try {
+        await Promise.race([
+          entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
+          entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
+        ]);
+        // 재연결 성공
+      } catch (error) {
+        // 재연결 실패 - 상태 초기화
+        console.log(`[TTS] 재연결 실패. 연결 상태 초기화`);
+        if (this.currentConnection === connection) {
+          this.currentConnection = null;
+          this.currentVoiceChannelId = null;
+        }
+        connection.destroy();
+      }
+    });
+
+    // 연결 완전 종료 감지
+    connection.on(VoiceConnectionStatus.Destroyed, () => {
+      console.log(`[TTS] 음성 채널 연결 종료됨`);
+      if (this.currentConnection === connection) {
+        this.currentConnection = null;
+        this.currentVoiceChannelId = null;
+      }
     });
 
     // 연결 안정화 대기 (바로 재생하면 실패/버퍼링 상태로 남는 케이스 방지)
