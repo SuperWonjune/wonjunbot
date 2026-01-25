@@ -3,46 +3,49 @@
  * 사용자 ID에 따라 일관된 목소리를 제공하기 위한 설정
  */
 const voiceProfiles = [
-    // === Female Voices (Source is Female) ===
-    // 1. Nana (Natural)
-    { filter: null, name: "Nana (Natural)" },
+    // === 여성 목소리 (Female Voices) ===
+    // Pitch를 높여서 여성 목소리 구현 (Base voice가 중저음일 수 있음)
 
-    // 2. Sora (Bright / Energetic) -> Pitch x1.1
-    // 24000 * 1.1 = 26400, Tempo = 1/1.1 = 0.91
-    { filter: "asetrate=26400,atempo=0.91", name: "Sora (Bright)" },
+    // 1. 나나 (자연스러운 목소리) - 기본
+    { filter: null, name: "나나 (자연스러운 목소리)" },
 
-    // 3. Yuna (Calm / Cooler) -> Pitch x0.95
-    // 24000 * 0.95 = 22800, Tempo = 1/0.95 = 1.05
-    { filter: "asetrate=22800,atempo=1.05", name: "Yuna (Calm)" },
+    // 2. 소라 (밝고 명랑한 느낌) - Pitch x1.25
+    // 24000 * 1.25 = 30000
+    { filter: "asetrate=30000,atempo=0.8", name: "소라 (밝고 명랑한 느낌)" },
 
-    // 4. Minji (Young / Cute) -> Pitch x1.15, Slower tempo
+    // 3. 유리 (높고 귀여운 느낌) - Pitch x1.4
+    // 24000 * 1.4 = 33600
+    { filter: "asetrate=33600,atempo=0.71", name: "유리 (높고 귀여운 느낌)" },
+
+    // 4. 수진 (차분한 여성) - Pitch x1.15
     // 24000 * 1.15 = 27600
-    { filter: "asetrate=27600,atempo=0.9", name: "Minji (Young)" },
+    { filter: "asetrate=27600,atempo=0.87", name: "수진 (차분한 여성)" },
 
-    // 5. Harin (Deep / Mature) -> Pitch x0.9
-    // 24000 * 0.9 = 21600, Tempo = 1/0.9 = 1.11
-    { filter: "asetrate=21600,atempo=1.11", name: "Harin (Mature)" },
+    // 5. 민지 (어린 아이 느낌) - Pitch x1.5, Tempo faster
+    // 24000 * 1.5 = 36000
+    { filter: "asetrate=36000,atempo=0.8", name: "민지 (어린 아이 느낌)" },
 
-    // === Male Voices (Simulated from Female) ===
-    // 6. Junho (Standard Male) -> Pitch x0.75
-    // 24000 * 0.75 = 18000, Tempo = 1/0.75 = 1.33
-    { filter: "asetrate=18000,atempo=1.33", name: "Junho (Male)" },
+    // === 남성 목소리 (Male Voices) ===
 
-    // 7. Minho (Deep Male) -> Pitch x0.7
-    // 24000 * 0.7 = 16800, Tempo = 1/0.7 = 1.43
-    { filter: "asetrate=16800,atempo=1.43", name: "Minho (Deep Male)" },
+    // 6. 준호 (기본 남성) - Pitch x0.8
+    // 24000 * 0.8 = 19200
+    { filter: "asetrate=19200,atempo=1.25", name: "준호 (기본 남성)" },
 
-    // 8. Seojin (Soft Male) -> Pitch x0.8 + Lowpass
-    // 24000 * 0.8 = 19200, Tempo = 1/0.8 = 1.25
-    { filter: "asetrate=19200,atempo=1.25,lowpass=f=3000", name: "Seojin (Soft Male)" },
+    // 7. 민호 (중후한 남성) - Pitch x0.7
+    // 24000 * 0.7 = 16800
+    { filter: "asetrate=16800,atempo=1.43", name: "민호 (중후한 남성)" },
 
-    // 9. Doyoon (Crisp Male) -> Pitch x0.82 + Treble boost
-    // 24000 * 0.82 = 19680, Tempo = 1/0.82 = 1.22
-    { filter: "asetrate=19680,atempo=1.22,treble=g=5", name: "Doyoon (Crisp Male)" },
+    // 8. 서진 (부드러운 남성) - Pitch x0.85 + Lowpass
+    // 24000 * 0.85 = 20400
+    { filter: "asetrate=20400,atempo=1.18,lowpass=f=3000", name: "서진 (부드러운 남성)" },
 
-    // 10. Jiwon (Youth Male) -> Pitch x0.85
-    // 24000 * 0.85 = 20400, Tempo = 1/0.85 = 1.18
-    { filter: "asetrate=20400,atempo=1.18", name: "Jiwon (Youth Male)" },
+    // 9. 도윤 (선명한 남성) - Pitch x0.82 + Treble boost
+    // 24000 * 0.82 = 19680
+    { filter: "asetrate=19680,atempo=1.22,treble=g=5", name: "도윤 (선명한 남성)" },
+
+    // 10. 지원 (소년 목소리) - Pitch x0.95
+    // 24000 * 0.95 = 22800
+    { filter: "asetrate=22800,atempo=1.05", name: "지원 (소년 목소리)" },
 ];
 
 // 사용자별 음성 설정 저장 (메모리)
