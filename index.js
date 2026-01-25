@@ -28,10 +28,10 @@ const messageHandler = new MessageHandler(ttsService);
 const onReady = () => {
   console.log(`로그인: ${client.user.tag}`);
   console.log("=====================================");
-  
+
   // 메시지 핸들러 등록
   messageHandler.register(client);
-  
+
   // TTS 상태 표시
   if (ttsService.isEnabled()) {
     console.log(`[TTS] TTS 서비스 활성화 (언어: ${config.TTS_LANG})`);
@@ -40,7 +40,7 @@ const onReady = () => {
   } else {
     console.log("[TTS] TTS 서비스 비활성화 (TTS_VOICE_CHANNEL_IDS를 설정하세요)");
   }
-  
+
   console.log("=====================================");
   console.log("봇이 정상적으로 시작되었습니다");
 };
@@ -55,6 +55,11 @@ client.on("error", (error) => {
 
 process.on("unhandledRejection", (error) => {
   console.error("[UNHANDLED REJECTION]", error);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("[UNCAUGHT EXCEPTION]", error);
+  // 심각한 오류가 아니면 프로세스 종료하지 않음
 });
 
 // 봇 로그인
