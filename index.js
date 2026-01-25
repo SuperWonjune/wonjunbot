@@ -2,6 +2,7 @@ const { Client, GatewayIntentBits, Partials } = require("discord.js");
 const config = require("./config/config");
 const TTSService = require("./services/ttsService");
 const MessageHandler = require("./handlers/messageHandler");
+const CommandHandler = require("./handlers/commandHandler");
 
 /**
  * Discord TTS 봇
@@ -22,15 +23,22 @@ const client = new Client({
 // 서비스 초기화
 const ttsService = new TTSService(client);
 const messageHandler = new MessageHandler(ttsService);
+const commandHandler = new CommandHandler(client);
 
 // 봇 준비 완료 이벤트
 // Discord.js v14에서는 ready, v15+에서는 clientReady를 사용
-const onReady = () => {
+const onReady = async () => {
   console.log(`로그인: ${client.user.tag}`);
   console.log("=====================================");
 
+  // Slash Command 등록
+  await commandHandler.registerCommands();
+
   // 메시지 핸들러 등록
   messageHandler.register(client);
+
+  // Interaction 핸들러 등록
+  client.on("interactionCreate", (interaction) => commandHandler.handleInteraction(interaction));
 
   // TTS 상태 표시
   if (ttsService.isEnabled()) {
@@ -46,7 +54,8 @@ const onReady = () => {
 };
 
 // Discord.js 버전에 따라 적절한 이벤트 사용
-client.once("ready", onReady);
+const { Events } = require("discord.js");
+client.once(Events.ClientReady, onReady);
 
 // 에러 핸들링
 client.on("error", (error) => {

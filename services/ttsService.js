@@ -138,6 +138,13 @@ class TTSService {
       }
     });
 
+    // 소켓 에러 등 내부 에러 처리
+    connection.on('stateChange', (oldState, newState) => {
+      if (newState.status === VoiceConnectionStatus.Disconnected) {
+        // Disconnect handling is already in specialized listener, but monitoring here helps
+      }
+    });
+
     // 연결 안정화 대기 (바로 재생하면 실패/버퍼링 상태로 남는 케이스 방지)
     await entersState(connection, VoiceConnectionStatus.Ready, 15_000);
 
@@ -235,7 +242,16 @@ class TTSService {
       console.log(`[TTS] Fetching URL: ${ttsUrl}`);
 
       // 2) 음성 채널 연결 보장
-      await this.ensureVoiceConnection(guild, voiceChannelId);
+      try {
+        await this.ensureVoiceConnection(guild, voiceChannelId);
+      } catch (connError) {
+        console.error("[TTS] Connection error during play, retrying...", connError);
+        // Force reset
+        this.currentConnection = null;
+        this.currentVoiceChannelId = null;
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await this.ensureVoiceConnection(guild, voiceChannelId);
+      }
 
       // 3) 오디오 Fetch (공통)
       const res = await fetch(ttsUrl);
@@ -369,9 +385,13 @@ class TTSService {
   leaveVoiceChannel() {
     if (this.currentConnection) {
       try {
-        this.currentConnection.destroy();
+        if (this.currentConnection.state.status !== VoiceConnectionStatus.Destroyed) {
+          this.currentConnection.destroy();
+        }
       } catch (error) {
-        console.error("[TTS] 음성 채널 퇴장 오류:", error);
+        if (!error.message.includes('already been destroyed')) {
+          console.error("[TTS] 음성 채널 퇴장 오류:", error);
+        }
       }
     }
 

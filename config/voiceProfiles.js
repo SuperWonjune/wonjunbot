@@ -45,6 +45,9 @@ const voiceProfiles = [
     { filter: "asetrate=20400,atempo=1.18", name: "Jiwon (Youth Male)" },
 ];
 
+// 사용자별 음성 설정 저장 (메모리)
+const userOverrides = new Map();
+
 /**
  * 사용자 ID를 기반으로 음성 프로필 선택 (0~9)
  * @param {string} userId Discord 사용자 ID
@@ -53,7 +56,15 @@ const voiceProfiles = [
 function getVoiceProfile(userId) {
     if (!userId) return voiceProfiles[0];
 
-    // userId는 큰 숫자 문자열. 마지막 4자리만 사용하여 mod 연산
+    // 1. 사용자 지정 설정 확인
+    if (userOverrides.has(userId)) {
+        const index = userOverrides.get(userId);
+        if (index >= 0 && index < voiceProfiles.length) {
+            return voiceProfiles[index];
+        }
+    }
+
+    // 2. 기본값: userId는 큰 숫자 문자열. 마지막 4자리만 사용하여 mod 연산
     // (충분히 랜덤하게 분포됨)
     const lastPart = userId.slice(-4);
     const index = parseInt(lastPart, 10) % voiceProfiles.length;
@@ -61,7 +72,20 @@ function getVoiceProfile(userId) {
     return voiceProfiles[index];
 }
 
+/**
+ * 사용자의 음성 프로필 설정
+ * @param {string} userId Discord 사용자 ID
+ * @param {number} index 음성 프로필 인덱스 (0~9)
+ */
+function setVoiceProfile(userId, index) {
+    if (index < 0 || index >= voiceProfiles.length) {
+        throw new Error("Invalid voice profile index");
+    }
+    userOverrides.set(userId, index);
+}
+
 module.exports = {
     voiceProfiles,
-    getVoiceProfile
+    getVoiceProfile,
+    setVoiceProfile
 };
