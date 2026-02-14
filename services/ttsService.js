@@ -27,8 +27,6 @@ class TTSService {
     this.isActive = false; // TTS 활성화 여부
     this.currentVoiceChannelId = null; // 현재 연결된 음성 채널 ID
     this.currentConnection = null; // 현재 음성 연결
-    this.lastActivityTime = null; // 마지막 활동 시간
-    this.autoLeaveTimer = null; // 자동 퇴장 타이머
 
     // 오디오 플레이어 생성
     this.player = createAudioPlayer({
@@ -38,7 +36,6 @@ class TTSService {
     });
 
     this._setupPlayerEvents();
-    this._startAutoLeaveTimer();
   }
 
   /**
@@ -177,7 +174,6 @@ class TTSService {
     try {
       await this.ensureVoiceConnection(guild, voiceChannel.id);
       this.isActive = true;
-      this.lastActivityTime = Date.now();
       console.log(`[TTS] 서비스 시작: ${guild.name} / ${voiceChannel.name}`);
     } catch (error) {
       console.error("[TTS] 서비스 시작 실패:", error);
@@ -209,11 +205,6 @@ class TTSService {
     if (!trimmed) return;
 
     this.ttsQueue.push({ guild, voiceChannelId, text: trimmed, originalMessage });
-
-    // 활동 시간 업데이트
-    this.lastActivityTime = Date.now();
-
-    this.lastActivityTime = Date.now();
 
     if (!this.playing) {
       // isActive 체크는 위에서 했으므로, playing 아닐 때 바로 재생 시도
@@ -336,9 +327,6 @@ class TTSService {
       this.player.play(resource);
       console.log(`[TTS] <#${voiceChannelId}>: "${text}"`);
 
-      // 활동 시간 업데이트
-      this.lastActivityTime = Date.now();
-
     } catch (error) {
       console.error("[TTS] playNextInQueue error:", error);
 
@@ -381,52 +369,7 @@ class TTSService {
     };
   }
 
-  /**
-   * 자동 퇴장 타이머 시작
-   */
-  _startAutoLeaveTimer() {
-    if (config.AUTO_LEAVE_TIMEOUT <= 0) {
-      console.log("[TTS] 자동 퇴장 기능 비활성화");
-      return;
-    }
 
-    // 1분마다 체크
-    this.autoLeaveTimer = setInterval(() => {
-      this._checkAndLeaveIfIdle();
-    }, 60 * 1000);
-
-    console.log(`[TTS] 자동 퇴장 타이머 시작 (${config.AUTO_LEAVE_TIMEOUT}분 유휴 시 퇴장)`);
-  }
-
-  /**
-   * 자동 퇴장 타이머 정지
-   */
-  _stopAutoLeaveTimer() {
-    if (this.autoLeaveTimer) {
-      clearInterval(this.autoLeaveTimer);
-      this.autoLeaveTimer = null;
-    }
-  }
-
-  /**
-   * 유휴 상태 체크 및 자동 퇴장
-   */
-  _checkAndLeaveIfIdle() {
-    // 연결되어 있지 않으면 무시
-    if (!this.currentConnection || !this.currentVoiceChannelId) return;
-
-    // 활동 기록이 없으면 무시
-    if (!this.lastActivityTime) return;
-
-    const now = Date.now();
-    const idleTime = now - this.lastActivityTime;
-    const timeoutMs = config.AUTO_LEAVE_TIMEOUT * 60 * 1000;
-
-    if (idleTime >= timeoutMs) {
-      console.log(`[TTS] ${config.AUTO_LEAVE_TIMEOUT}분 동안 활동 없음. 음성 채널에서 퇴장합니다.`);
-      this.stop(); // stop() 메서드 사용
-    }
-  }
 
   /**
    * VoiceStateUpdate 이벤트 처리 (자동 퇴장 로직)
@@ -471,7 +414,6 @@ class TTSService {
 
     this.currentConnection = null;
     this.currentVoiceChannelId = null;
-    this.lastActivityTime = null;
     console.log("[TTS] 음성 채널에서 퇴장 완료");
   }
 
@@ -479,7 +421,6 @@ class TTSService {
    * 서비스 종료 시 정리
    */
   destroy() {
-    this._stopAutoLeaveTimer();
     this.leaveVoiceChannel();
   }
 }

@@ -16,11 +16,6 @@ const config = {
 
   // TTS 언어 설정 (기본값: 한국어)
   TTS_LANG: process.env.TTS_LANG || "ko",
-
-  // 자동 퇴장 시간 (분 단위, 기본값: 5분)
-  // 마지막 채팅 후 이 시간이 지나면 봇이 음성 채널에서 자동으로 나감
-  // 0으로 설정하면 자동 퇴장 비활성화
-  AUTO_LEAVE_TIMEOUT: parseInt(process.env.AUTO_LEAVE_TIMEOUT_MINUTES || "5", 10),
 };
 
 /**
