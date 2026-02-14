@@ -23,7 +23,7 @@ const client = new Client({
 // 서비스 초기화
 const ttsService = new TTSService(client);
 const messageHandler = new MessageHandler(ttsService);
-const commandHandler = new CommandHandler(client);
+const commandHandler = new CommandHandler(client, ttsService);
 
 // 봇 준비 완료 이벤트
 // Discord.js v14에서는 ready, v15+에서는 clientReady를 사용
@@ -39,6 +39,13 @@ const onReady = async () => {
 
   // Interaction 핸들러 등록
   client.on("interactionCreate", (interaction) => commandHandler.handleInteraction(interaction));
+
+  // Voice State Update 핸들러 (자동 퇴장 등)
+  client.on("voiceStateUpdate", (oldState, newState) => {
+    ttsService.handleVoiceStateUpdate(oldState, newState);
+  });
+
+  // TTS 상태 표시
 
   // TTS 상태 표시
   if (ttsService.isEnabled()) {

@@ -24,6 +24,7 @@ class TTSService {
     this.client = client;
     this.ttsQueue = [];
     this.playing = false;
+    this.isActive = false; // TTS 활성화 여부
     this.currentVoiceChannelId = null; // 현재 연결된 음성 채널 ID
     this.currentConnection = null; // 현재 음성 연결
     this.lastActivityTime = null; // 마지막 활동 시간
@@ -131,10 +132,15 @@ class TTSService {
 
     // 연결 완전 종료 감지
     connection.on(VoiceConnectionStatus.Destroyed, () => {
-      console.log(`[TTS] 음성 채널 연결 종료됨`);
+      console.log(`[TTS] 음성 채널 연결 종료됨 (Destroyed)`);
       if (this.currentConnection === connection) {
         this.currentConnection = null;
         this.currentVoiceChannelId = null;
+        // 의도치 않은 종료 시 isActive 해제
+        if (this.isActive) {
+          console.log("[TTS] 비정상 종료 감지: isActive = false로 변경");
+          this.isActive = false;
+        }
       }
     });
 
@@ -161,9 +167,43 @@ class TTSService {
   }
 
   /**
+   * TTS 서비스 시작 (음성 채널 접속)
+   */
+  async start(guild, voiceChannel) {
+    if (this.isActive && this.currentVoiceChannelId === voiceChannel.id) {
+      return; // 이미 해당 채널에서 활성화됨
+    }
+
+    try {
+      await this.ensureVoiceConnection(guild, voiceChannel.id);
+      this.isActive = true;
+      this.lastActivityTime = Date.now();
+      console.log(`[TTS] 서비스 시작: ${guild.name} / ${voiceChannel.name}`);
+    } catch (error) {
+      console.error("[TTS] 서비스 시작 실패:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * TTS 서비스 중지 (음성 채널 퇴장)
+   */
+  stop() {
+    if (!this.isActive) return;
+
+    this.ttsQueue = []; // 큐 초기화
+    this.playing = false;
+    this.isActive = false;
+    this.leaveVoiceChannel();
+    console.log(`[TTS] 서비스 중지`);
+  }
+
+  /**
    * TTS 큐에 메시지 추가
    */
   async enqueueTTS(guild, voiceChannelId, text, originalMessage) {
+    if (!this.isActive) return; // 활성화 상태가 아니면 무시
+
     // 너무 긴 텍스트 방지 (구글 TTS는 길이 제한이 있음)
     const trimmed = text.trim().slice(0, 200);
     if (!trimmed) return;
@@ -173,7 +213,11 @@ class TTSService {
     // 활동 시간 업데이트
     this.lastActivityTime = Date.now();
 
+    this.lastActivityTime = Date.now();
+
     if (!this.playing) {
+      // isActive 체크는 위에서 했으므로, playing 아닐 때 바로 재생 시도
+      // 단, playNextInQueue 내부에서도 연결 체크를 하긴 함
       await this.playNextInQueue();
     }
   }
@@ -241,16 +285,21 @@ class TTSService {
       const ttsUrl = await googleTTS(text, config.TTS_LANG, 1);
       console.log(`[TTS] Fetching URL: ${ttsUrl}`);
 
-      // 2) 음성 채널 연결 보장
-      try {
-        await this.ensureVoiceConnection(guild, voiceChannelId);
-      } catch (connError) {
-        console.error("[TTS] Connection error during play, retrying...", connError);
-        // Force reset
-        this.currentConnection = null;
-        this.currentVoiceChannelId = null;
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        await this.ensureVoiceConnection(guild, voiceChannelId);
+      // 2) 음성 채널 연결 보장 (이미 연결되어 있어야 함)
+      if (!this.currentConnection) {
+        // 혹시 연결이 끊어졌다면 재연결 시도
+        try {
+          await this.ensureVoiceConnection(guild, voiceChannelId);
+        } catch (connError) {
+          console.error("[TTS] Connection lost, retrying...", connError);
+          // 실패하면 다음 큐로 넘어감 (현재 항목 스킵)
+          if (item.originalMessage) {
+            item.originalMessage.reply("⚠️ 음성 채널 연결이 끊어져 재생할 수 없습니다.").catch(() => { });
+          }
+          this.playing = false;
+          this.playNextInQueue();
+          return;
+        }
       }
 
       // 3) 오디오 Fetch (공통)
@@ -375,7 +424,32 @@ class TTSService {
 
     if (idleTime >= timeoutMs) {
       console.log(`[TTS] ${config.AUTO_LEAVE_TIMEOUT}분 동안 활동 없음. 음성 채널에서 퇴장합니다.`);
-      this.leaveVoiceChannel();
+      this.stop(); // stop() 메서드 사용
+    }
+  }
+
+  /**
+   * VoiceStateUpdate 이벤트 처리 (자동 퇴장 로직)
+   */
+  handleVoiceStateUpdate(oldState, newState) {
+    if (!this.isActive || !this.currentVoiceChannelId) return;
+
+    const botId = this.client.user.id;
+    const channel = oldState.channel || newState.channel;
+
+    // 봇이 있는 채널에서 이벤트가 발생했는지 확인
+    if (!channel || channel.id !== this.currentVoiceChannelId) return;
+
+    // 현재 채널의 멤버 수 확인 (봇 포함)
+    const members = channel.members;
+
+    // 봇 혼자 남았는지 확인 (members.size === 1 && members.has(botId))
+    const memberCount = members.size;
+    console.log(`[TTS Debug]VoiceStateUpdate: Channel: ${channel.name}, Members: ${memberCount}`);
+
+    if (memberCount === 1 && members.has(botId)) {
+      console.log("[TTS] 음성 채널에 사용자가 없어 자동 퇴장합니다.");
+      this.stop();
     }
   }
 
