@@ -1,51 +1,42 @@
 /**
- * 음성 변조 프로필 정의
- * 사용자 ID에 따라 일관된 목소리를 제공하기 위한 설정
+ * 음성 프로필 정의
+ *
+ * Microsoft Edge 읽어주기(edge-tts) 신경망 음성을 사용한다.
+ * 예전에는 구글 번역기 TTS의 단일 음성을 ffmpeg 피치로 비틀어 남녀를 흉내냈지만,
+ * 지금은 성별이 다른 실제 성우 음성을 그대로 쓴다.
+ *
+ * - voice: Edge 음성 ShortName
+ * - pitch / rate: (선택) SSML prosody 값. 같은 음성으로 변화를 줄 때만 사용한다.
+ *
+ * Edge가 무료로 제공하는 ko-KR 음성은 SunHi(여성) / InJoon(남성) / Hyunsu(남성) 3개뿐이라,
+ * 여성 목소리를 늘리기 위해 한국어를 읽을 수 있는 다국어 여성 음성도 함께 사용한다.
  */
 const voiceProfiles = [
     // === 여성 목소리 (Female Voices) ===
-    // Pitch를 높여서 여성 목소리 구현 (Base voice가 중저음일 수 있음)
 
-    // 1. 나나 (자연스러운 목소리) - 기본
-    { filter: null, name: "나나 (자연스러운 목소리)" },
+    // 0. 선희 - 한국어 전용 여성 음성 (기본)
+    { name: "선희 (차분한 여성)", voice: "ko-KR-SunHiNeural" },
 
-    // 2. 소라 (밝고 명랑한 느낌) - Pitch x1.25
-    // 24000 * 1.25 = 30000
-    { filter: "asetrate=30000,atempo=0.8", name: "소라 (밝고 명랑한 느낌)" },
+    // 1. 소라 - 선희를 밝고 명랑하게
+    { name: "소라 (밝고 명랑한 여성)", voice: "ko-KR-SunHiNeural", pitch: "+15%", rate: "+8%" },
 
-    // 3. 유리 (높고 귀여운 느낌) - Pitch x1.4
-    // 24000 * 1.4 = 33600
-    { filter: "asetrate=33600,atempo=0.71", name: "유리 (높고 귀여운 느낌)" },
+    // 2. 유리 - 선희를 높고 귀엽게
+    { name: "유리 (높고 귀여운 여성)", voice: "ko-KR-SunHiNeural", pitch: "+30%", rate: "+12%" },
 
-    // 4. 수진 (차분한 여성) - Pitch x1.15
-    // 24000 * 1.15 = 27600
-    { filter: "asetrate=27600,atempo=0.87", name: "수진 (차분한 여성)" },
-
-    // 5. 민지 (어린 아이 느낌) - Pitch x1.5, Tempo faster
-    // 24000 * 1.5 = 36000
-    { filter: "asetrate=36000,atempo=0.8", name: "민지 (어린 아이 느낌)" },
+    // 3~7. 한국어를 읽을 수 있는 다국어 여성 음성 (서로 음색이 다름)
+    { name: "에이바 (부드러운 여성)", voice: "en-US-AvaMultilingualNeural" },
+    { name: "엠마 (또렷한 여성)", voice: "en-US-EmmaMultilingualNeural" },
+    { name: "비비안 (담백한 여성)", voice: "fr-FR-VivienneMultilingualNeural" },
+    { name: "세라피나 (온화한 여성)", voice: "de-DE-SeraphinaMultilingualNeural" },
+    { name: "탈리타 (경쾌한 여성)", voice: "pt-BR-ThalitaMultilingualNeural" },
 
     // === 남성 목소리 (Male Voices) ===
 
-    // 6. 준호 (기본 남성) - Pitch x0.8
-    // 24000 * 0.8 = 19200
-    { filter: "asetrate=19200,atempo=1.25", name: "준호 (기본 남성)" },
+    // 8. 인준 - 한국어 전용 남성 음성
+    { name: "인준 (기본 남성)", voice: "ko-KR-InJoonNeural" },
 
-    // 7. 민호 (중후한 남성) - Pitch x0.7
-    // 24000 * 0.7 = 16800
-    { filter: "asetrate=16800,atempo=1.43", name: "민호 (중후한 남성)" },
-
-    // 8. 서진 (부드러운 남성) - Pitch x0.85 + Lowpass
-    // 24000 * 0.85 = 20400
-    { filter: "asetrate=20400,atempo=1.18,lowpass=f=3000", name: "서진 (부드러운 남성)" },
-
-    // 9. 도윤 (선명한 남성) - Pitch x0.82 + Treble boost
-    // 24000 * 0.82 = 19680
-    { filter: "asetrate=19680,atempo=1.22,treble=g=5", name: "도윤 (선명한 남성)" },
-
-    // 10. 지원 (소년 목소리) - Pitch x0.95
-    // 24000 * 0.95 = 22800
-    { filter: "asetrate=22800,atempo=1.05", name: "지원 (소년 목소리)" },
+    // 9. 현수 - 한국어 전용 남성 음성
+    { name: "현수 (부드러운 남성)", voice: "ko-KR-HyunsuMultilingualNeural" },
 ];
 
 // 사용자별 음성 설정 저장 (메모리)

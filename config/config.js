@@ -19,6 +19,21 @@ const config = {
 };
 
 /**
+ * Edge TTS는 언어 코드가 아니라 로케일(ko-KR)을 사용한다.
+ * 다국어 음성에 이 값을 넘겨야 해당 언어로 읽는다.
+ */
+const LOCALE_BY_LANG = {
+  ko: "ko-KR",
+  en: "en-US",
+  ja: "ja-JP",
+  zh: "zh-CN",
+};
+
+config.TTS_LOCALE = process.env.TTS_LOCALE
+  || (config.TTS_LANG.includes("-") ? config.TTS_LANG : LOCALE_BY_LANG[config.TTS_LANG])
+  || "ko-KR";
+
+/**
  * 필수 환경변수 검증
  */
 function validateConfig() {

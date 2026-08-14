@@ -10,10 +10,7 @@ const {
   VoiceConnectionStatus,
 } = require("@discordjs/voice");
 const { PermissionsBitField } = require("discord.js");
-const { Readable } = require("stream");
-const googleTTS = require("google-tts-api");
-const prism = require("prism-media");
-const { spawn } = require("child_process");
+const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
 const config = require("../config/config");
 const { getVoiceProfile } = require("../config/voiceProfiles");
 
@@ -302,7 +299,7 @@ class TTSService {
   async enqueueTTS(guild, voiceChannelId, text, originalMessage) {
     if (!this.isActive) return; // 활성화 상태가 아니면 무시
 
-    // 너무 긴 텍스트 방지 (구글 TTS는 길이 제한이 있음)
+    // 너무 긴 메시지가 음성 채널을 오래 점유하는 것을 방지
     const trimmed = text.trim().slice(0, 200);
     if (!trimmed) return;
 
@@ -316,47 +313,39 @@ class TTSService {
   }
 
   /**
-   * FFmpeg 프로세스를 생성하여 변환된 오디오 스트림 반환 (Input: Stream)
+   * Edge TTS로 텍스트를 합성하여 오디오 스트림(MP3)을 반환
+   *
+   * 피치/속도는 SSML prosody로 서버에서 처리되므로 별도 ffmpeg 필터가 필요 없다.
+   * 요청마다 새 인스턴스를 쓰고 스트림이 끝나면 WebSocket을 닫는다.
    */
-  _createFFmpegStream(inputStream, filters) {
-    const args = [
-      "-i", "pipe:0", // stdin에서 입력 받음
-      "-acodec", "libopus",
-      "-f", "opus",   // opus 형식으로 출력
-      "-ac", "2",     // 2채널
-      "-ar", "48000"  // 48kHz
-    ];
+  async _synthesize(text, profile) {
+    const tts = new MsEdgeTTS();
 
-    if (filters) {
-      args.push("-af", filters);
-    }
+    await tts.setMetadata(
+      profile.voice,
+      OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3,
+      { voiceLocale: config.TTS_LOCALE }
+    );
 
-    args.push("pipe:1");
+    const prosody = {};
+    if (profile.pitch) prosody.pitch = profile.pitch;
+    if (profile.rate) prosody.rate = profile.rate;
 
+    const { audioStream } = tts.toStream(text, prosody);
 
-
-    const ffmpeg = spawn("ffmpeg", args);
-
-    // 에러 로깅
-    ffmpeg.stderr.on('data', (data) => {
-      // 디버깅을 위해 에러 로그 활성화
-      console.log(`[FFmpeg Error] ${data}`);
+    const close = () => {
+      try {
+        tts.close();
+      } catch (e) { /* 이미 닫힌 경우 무시 */ }
+    };
+    audioStream.once("end", close);
+    audioStream.once("close", close);
+    audioStream.once("error", (error) => {
+      console.error("[TTS] 합성 스트림 오류:", error.message);
+      close();
     });
 
-    // 입력 스트림을 ffmpeg stdin으로 파이핑
-    inputStream.pipe(ffmpeg.stdin);
-
-    // 파이프 에러 처리
-    inputStream.on('error', error => {
-      console.error('[TTS] Input Stream Error:', error);
-      ffmpeg.kill();
-    });
-
-    ffmpeg.stdin.on('error', error => {
-      // FFmpeg 종료 시 등의 stdin 에러 무시
-    });
-
-    return ffmpeg.stdout;
+    return audioStream;
   }
 
   /**
@@ -374,9 +363,9 @@ class TTSService {
       const { guild, voiceChannelId, text, originalMessage } = item;
       const authorId = originalMessage?.author?.id;
 
-      // 1) TTS 음성 URL 생성
-      const ttsUrl = await googleTTS(text, config.TTS_LANG, 1);
-      console.log(`[TTS] Fetching URL: ${ttsUrl}`);
+      // 1) 사용자별 음성 프로필 결정
+      const profile = getVoiceProfile(authorId);
+      console.log(`[TTS] Play for ${originalMessage?.author?.username} (Profile: ${profile.name} / ${profile.voice})`);
 
       // 2) 음성 채널 연결 보장 (이미 연결되어 있어야 함)
       if (!this.currentConnection) {
@@ -395,36 +384,12 @@ class TTSService {
         }
       }
 
-      // 3) 오디오 Fetch (공통)
-      const res = await fetch(ttsUrl);
-      if (!res.ok) {
-        throw new Error(`TTS 오디오 fetch 실패: ${res.status} ${res.statusText}`);
-      }
-      if (!res.body) {
-        throw new Error("TTS 오디오 body가 비어있습니다");
-      }
+      // 3) 선택된 음성으로 합성
+      const audioStream = await this._synthesize(text, profile);
 
-      // Node Readable로 변환
-      const audioStream = Readable.fromWeb(res.body);
-
-      // 4) 음성 변조 적용 여부 결정
-      let resource;
-      const profile = getVoiceProfile(authorId);
-
-      console.log(`[TTS] Play for ${originalMessage?.author?.username} (Profile: ${profile.name})`);
-
-      if (profile.filter) {
-        // 필터가 있으면 FFmpeg stream (stdin -> stdout) 사용
-        const outputStream = this._createFFmpegStream(audioStream, profile.filter);
-        resource = createAudioResource(outputStream, {
-          inputType: StreamType.OggOpus,
-        });
-      } else {
-        // 기본 목소리: 바로 재생
-        resource = createAudioResource(audioStream, {
-          inputType: StreamType.Arbitrary,
-        });
-      }
+      const resource = createAudioResource(audioStream, {
+        inputType: StreamType.Arbitrary,
+      });
 
       this.player.play(resource);
       console.log(`[TTS] <#${voiceChannelId}>: "${text}"`);

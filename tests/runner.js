@@ -50,8 +50,25 @@ const voiceMock = {
 
 mock('@discordjs/voice', voiceMock);
 mock('sodium-native', {});
-mock('google-tts-api', async () => "http://mock-url.com");
-mock('prism-media', {});
+
+// Mock msedge-tts (실제 WebSocket 연결 없이 합성 요청만 기록하고 더미 스트림 반환)
+const { Readable } = require('stream');
+const ttsMock = {
+    calls: [],
+    MsEdgeTTS: class {
+        async setMetadata(voice, format, options) {
+            this.voice = voice;
+            this.locale = options?.voiceLocale;
+        }
+        toStream(text, prosody) {
+            ttsMock.calls.push({ voice: this.voice, locale: this.locale, text, prosody });
+            return { audioStream: Readable.from([Buffer.from('mock-audio')]), metadataStream: null };
+        }
+        close() { }
+    },
+    OUTPUT_FORMAT: { AUDIO_24KHZ_48KBITRATE_MONO_MP3: 'audio-24khz-48kbitrate-mono-mp3' },
+};
+mock('msedge-tts', ttsMock);
 
 async function runTests() {
     const testDir = __dirname;
