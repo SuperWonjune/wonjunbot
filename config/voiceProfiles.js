@@ -8,35 +8,39 @@
  * - voice: Edge 음성 ShortName
  * - pitch / rate: (선택) SSML prosody 값. 같은 음성으로 변화를 줄 때만 사용한다.
  *
- * Edge가 무료로 제공하는 ko-KR 음성은 SunHi(여성) / InJoon(남성) / Hyunsu(남성) 3개뿐이라,
- * 여성 목소리를 늘리기 위해 한국어를 읽을 수 있는 다국어 여성 음성도 함께 사용한다.
+ * Edge가 무료로 제공하는 ko-KR 전용 음성은 SunHi(여성) / InJoon(남성) / Hyunsu(남성)
+ * 3개뿐이다. 선택지를 늘리기 위해 한국어를 읽을 수 있는 다국어 음성을 함께 사용하며,
+ * 여성 5 / 남성 5로 균형을 맞춘다.
+ *
+ * 쓸 수 있는 후보는 이보다 많다. 교체하려면 아래 목록의 voice 값만 바꾸면 된다.
+ *   여성: ko-KR-SunHi / en-US-Ava / en-US-Emma / fr-FR-Vivienne / de-DE-Seraphina / pt-BR-Thalita
+ *   남성: ko-KR-InJoon / ko-KR-Hyunsu / en-US-Andrew / en-US-Brian / en-AU-William /
+ *         fr-FR-Remy / de-DE-Florian / it-IT-Giuseppe
  */
 const voiceProfiles = [
-    // === 여성 목소리 (Female Voices) ===
+    // === 여성 목소리 (Female Voices) — 5종 ===
 
     // 0. 선희 - 한국어 전용 여성 음성 (기본)
     { name: "선희 (차분한 여성)", voice: "ko-KR-SunHiNeural" },
 
-    // 1. 소라 - 선희를 밝고 명랑하게
+    // 1. 소라 - 선희를 밝고 명랑하게 (SSML prosody 변형)
     { name: "소라 (밝고 명랑한 여성)", voice: "ko-KR-SunHiNeural", pitch: "+15%", rate: "+8%" },
 
-    // 2. 유리 - 선희를 높고 귀엽게
-    { name: "유리 (높고 귀여운 여성)", voice: "ko-KR-SunHiNeural", pitch: "+30%", rate: "+12%" },
-
-    // 3~7. 한국어를 읽을 수 있는 다국어 여성 음성 (서로 음색이 다름)
+    // 2~4. 한국어를 읽을 수 있는 다국어 여성 음성
     { name: "에이바 (부드러운 여성)", voice: "en-US-AvaMultilingualNeural" },
     { name: "엠마 (또렷한 여성)", voice: "en-US-EmmaMultilingualNeural" },
-    { name: "비비안 (담백한 여성)", voice: "fr-FR-VivienneMultilingualNeural" },
     { name: "세라피나 (온화한 여성)", voice: "de-DE-SeraphinaMultilingualNeural" },
-    { name: "탈리타 (경쾌한 여성)", voice: "pt-BR-ThalitaMultilingualNeural" },
 
-    // === 남성 목소리 (Male Voices) ===
+    // === 남성 목소리 (Male Voices) — 5종 ===
 
-    // 8. 인준 - 한국어 전용 남성 음성
+    // 5~6. 한국어 전용 남성 음성
     { name: "인준 (기본 남성)", voice: "ko-KR-InJoonNeural" },
-
-    // 9. 현수 - 한국어 전용 남성 음성
     { name: "현수 (부드러운 남성)", voice: "ko-KR-HyunsuMultilingualNeural" },
+
+    // 7~9. 한국어를 읽을 수 있는 다국어 남성 음성
+    { name: "앤드류 (차분한 남성)", voice: "en-US-AndrewMultilingualNeural" },
+    { name: "브라이언 (또렷한 남성)", voice: "en-US-BrianMultilingualNeural" },
+    { name: "주세페 (묵직한 남성)", voice: "it-IT-GiuseppeMultilingualNeural" },
 ];
 
 // 사용자별 음성 설정 저장 (메모리)
