@@ -64,6 +64,29 @@ cd ~/discord/wonjunbot && git checkout master && git pull --ff-only origin maste
 cd ~/discord/wonjunbot && node -e "const S=require('./services/ttsService');const{voiceProfiles}=require('./config/voiceProfiles');(async()=>{const s=new S({user:{id:'x'}});let f=0;for(const p of voiceProfiles){try{const st=await s._synthesize('검증용 문장입니다.',p);let n=0;await new Promise((r,j)=>{st.on('data',c=>n+=c.length);st.on('end',r);st.on('error',j);setTimeout(()=>j(new Error('timeout')),25000)});console.log('OK  ',p.name,n,'bytes')}catch(e){f++;console.log('FAIL',p.name,e.message)}}console.log(f?f+' FAILED':'ALL OK');process.exit(f?1:0)})()"
 ```
 
+## 의존성 유지보수 노트
+
+`package.json`의 `overrides.tar`는 임시 조치다.
+
+`tar` 6.x에는 보안 패치본이 없고(6.2.1이 마지막) 수정은 7.x에만 있는데,
+`@discordjs/opus`가 쓰는 `@discordjs/node-pre-gyp`가 아직 `tar ^6.1.11`을 요구한다.
+그래서 `tar`를 7.x로 강제하고 있다. 이 한 줄이 취약점 5개를 한꺼번에 막는다.
+
+```
+tar -> @discordjs/node-pre-gyp -> @discordjs/opus -> prism-media -> @discordjs/voice
+```
+
+`tar`는 설치 시점에 prebuilt 네이티브 바이너리를 푸는 데 쓰이므로, 잘못되면
+`@discordjs/opus`가 깨져 **음성 인코딩이 실패한다**. `npm ci` 후에는 반드시 확인할 것:
+
+```bash
+node -e "const{OpusEncoder}=require('@discordjs/opus');const e=new OpusEncoder(48000,2);console.log('opus OK:',e.encode(Buffer.alloc(3840)).length,'bytes')"
+```
+
+`@discordjs/node-pre-gyp`가 `tar` 7을 정식 지원하면 이 override는 지워야 한다.
+의존성을 크게 손볼 때는 운영 디렉터리를 건드리기 전에 임시 디렉터리에
+`package.json` / `package-lock.json`만 복사해 설치를 먼저 시험하는 것이 안전하다.
+
 ## 로그 읽을 때 주의
 
 pm2 로그는 재시작해도 이어 쓰이므로 **과거 기록이 그대로 남아있다.**
