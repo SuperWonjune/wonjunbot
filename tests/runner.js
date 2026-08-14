@@ -6,14 +6,26 @@ const mock = require('mock-require');
 const { EventEmitter } = require('events');
 
 // Mock @discordjs/voice
+// 테스트에서 voiceMock.failReady = true 로 두면 연결이 Ready에 도달하지 못하는
+// 상황(정원 초과 채널 등)을 재현할 수 있다
 const voiceMock = {
-    joinVoiceChannel: () => {
+    failReady: false,
+    connections: new Map(),
+    joinVoiceChannel: ({ guildId }) => {
         const conn = new EventEmitter();
-        conn.state = { status: 'ready' };
+        conn.state = { status: voiceMock.failReady ? 'signalling' : 'ready' };
         conn.subscribe = () => { };
-        conn.destroy = () => { conn.emit('stateChange', { status: 'ready' }, { status: 'destroyed' }); };
+        conn.destroy = () => {
+            const oldState = conn.state;
+            conn.state = { status: 'destroyed' };
+            voiceMock.connections.delete(guildId);
+            conn.emit('stateChange', oldState, conn.state);
+            conn.emit('destroyed');
+        };
+        voiceMock.connections.set(guildId, conn);
         return conn;
     },
+    getVoiceConnection: (guildId) => voiceMock.connections.get(guildId) || null,
     createAudioPlayer: () => ({
         on: () => { },
         play: () => { }
@@ -22,7 +34,11 @@ const voiceMock = {
     AudioPlayerStatus: { Idle: 'idle' },
     NoSubscriberBehavior: { Pause: 'pause' },
     StreamType: { Arbitrary: 'arbitrary' },
-    entersState: async () => Promise.resolve(),
+    entersState: async (connection, status) => {
+        if (voiceMock.failReady && status === 'ready') {
+            throw new Error("Aborted: 연결이 Ready 상태가 되지 못했습니다");
+        }
+    },
     VoiceConnectionStatus: {
         Ready: 'ready',
         Signalling: 'signalling',

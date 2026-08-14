@@ -85,7 +85,7 @@ class CommandHandler {
             } else if (commandName === "ttsstart") {
                 const voiceChannel = interaction.member.voice.channel;
                 if (!voiceChannel) {
-                    await interaction.reply({ content: "❌ 음성 채널에 먼저 접속해주세요.", ephemeral: true });
+                    await interaction.reply({ content: "❌ 음성 채널에 먼저 접속해주세요.", flags: MessageFlags.Ephemeral });
                     return;
                 }
 
@@ -107,7 +107,9 @@ class CommandHandler {
                 }
 
             } else if (commandName === "ttsstop") {
-                if (!this.ttsService.isActive) {
+                // isActive가 false여도 연결이 남아있으면 정리할 수 있어야 한다
+                // (연결 실패로 채널에 묶인 상태를 풀 수 있는 유일한 탈출구)
+                if (!this.ttsService.hasSession()) {
                     await interaction.reply({ content: "❌ TTS가 현재 실행 중이 아닙니다.", flags: MessageFlags.Ephemeral });
                     return;
                 }
