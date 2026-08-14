@@ -116,11 +116,6 @@ class CommandHandler {
 
                 this.ttsService.stop();
                 await interaction.reply({ content: "✅ TTS 서비스를 종료하고 퇴장합니다.", flags: MessageFlags.Ephemeral });
-
-            } else if (commandName === "play") {
-                interaction.reply({ content: "Music feature is disabled.", flags: MessageFlags.Ephemeral });
-            } else if (commandName === "stop") {
-                interaction.reply({ content: "Music feature is disabled.", flags: MessageFlags.Ephemeral });
             }
         } catch (error) {
             console.error(error);

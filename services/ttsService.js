@@ -267,7 +267,8 @@ class TTSService {
       this.isActive = true;
       console.log(`[TTS] 서비스 시작: ${guild.name} / ${voiceChannel.name}`);
     } catch (error) {
-      console.error("[TTS] 서비스 시작 실패:", error);
+      // 정원 초과·권한 부족 등은 사용자에게 안내되는 예상된 실패이므로 메시지만 남긴다
+      console.error("[TTS] 서비스 시작 실패:", error.message);
       throw error;
     }
   }
