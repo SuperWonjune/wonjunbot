@@ -87,6 +87,32 @@ node -e "const{OpusEncoder}=require('@discordjs/opus');const e=new OpusEncoder(4
 의존성을 크게 손볼 때는 운영 디렉터리를 건드리기 전에 임시 디렉터리에
 `package.json` / `package-lock.json`만 복사해 설치를 먼저 시험하는 것이 안전하다.
 
+## Edge TTS가 403을 뱉을 때
+
+증상: 채팅은 들어오는데 봇이 `⚠️ Edge TTS WebSocket error: Unexpected server response: 403`만 답한다.
+(`getVoices()`는 같은 호스트에서 멀쩡히 동작하므로 네트워크·방화벽 문제가 아니다.)
+
+원인은 거의 항상 **`msedge-tts` 버전이 낡은 것**이다.
+Edge Read Aloud 엔드포인트는 핸드셰이크 URL에 `Sec-MS-GEC` 서명 토큰과
+`Sec-MS-GEC-Version`(Edge 빌드 번호)을 요구하는데, MS가 이 서명 방식을
+주기적으로 갈아치운다. 구버전이 보내는 옛 서명은 그 순간부터 403이 된다.
+
+- 2026-10-12: v1 서명 거부 시작 → `msedge-tts` 2.1.0이 `api.msedgeservices.com`으로 우회
+- 2026-10-24: 그 우회 호스트도 막힘 → 2.1.1이 원래 호스트 + v2 서명으로 복귀 (현재 정상)
+
+대응은 최신 버전으로 올리는 것뿐이다. 코드 수정은 필요 없다 (공개 API 동일).
+
+```bash
+cd ~/discord/wonjunbot && npm install msedge-tts@latest && npm test
+```
+
+lock 파일이 바뀌므로 **커밋해서 저장소에 반영**해야 다음 `npm ci`가 같은 버전을 쓴다.
+올린 뒤에는 위의 "전 프로필 합성 검증" 스크립트로 실제 합성이 되는지 확인할 것.
+테스트는 `msedge-tts`를 mock으로 갈아끼우므로 **`npm test`는 이 장애를 절대 잡지 못한다.**
+
+최신 버전에서도 403이면 업스트림 이슈를 먼저 본다:
+<https://github.com/Migushthe2nd/MsEdgeTTS/issues>
+
 ## 로그 읽을 때 주의
 
 pm2 로그는 재시작해도 이어 쓰이므로 **과거 기록이 그대로 남아있다.**
