@@ -13,11 +13,11 @@ const {
 const config = require("../config/config");
 const { formatDuration } = require("../utils/youtubeUrl");
 
-// Opus를 우선 고른다: YouTube의 webm/opus(~160kbps)는 Discord와 같은 코덱이라
-// 재인코딩 없이 그대로 흘려보낼 수 있어 음질 손실이 없다.
+// Opus를 우선 고른다: YouTube의 webm/opus(~160kbps)가 보통 가장 음질이 좋다.
 const AUDIO_FORMAT = "bestaudio[acodec=opus]/bestaudio/best";
 const RESOLVE_TIMEOUT_MS = 30_000;
 const MAX_QUEUE = 50;
+const MUSIC_BITRATE = 128_000;
 
 /**
  * YouTube 음악 재생 서비스
@@ -282,19 +282,18 @@ class MusicService {
   _play(track) {
     const proc = this._openStream(track);
 
-    // webm/opus는 디먹싱만 하고 Opus 패킷을 그대로 보낸다 (재인코딩 없음 → 원음질)
-    // 그 외 포맷(m4a 등)은 ffmpeg로 디코드 후 Opus로 인코딩한다
-    const inputType = track.acodec === "opus" && track.ext === "webm"
-      ? StreamType.WebmOpus
-      : StreamType.Arbitrary;
-
-    const resource = createAudioResource(proc.stdout, { inputType, metadata: track });
+    // 볼륨 조절은 PCM에서만 되므로 포맷과 관계없이 ffmpeg 디코드 → 볼륨 → Opus 재인코딩을 거친다.
+    // 재인코딩 손실을 줄이려고 인코더 비트레이트를 원본(~130kbps)과 비슷하게 올린다.
+    const inputType = StreamType.Arbitrary;
+    const resource = createAudioResource(proc.stdout, { inputType, inlineVolume: true, metadata: track });
+    resource.volume?.setVolume(config.MUSIC_VOLUME);
+    resource.encoder?.setBitrate?.(MUSIC_BITRATE);
 
     this.current = { track, proc };
     this.player.play(resource);
     this.tts.currentConnection?.subscribe(this.player);
 
-    console.log(`[Music] 재생: ${track.title} [${track.formatId} ${track.acodec}/${track.ext} ${track.abr ?? "?"}kbps] (${inputType})`);
+    console.log(`[Music] 재생: ${track.title} [${track.formatId} ${track.acodec}/${track.ext} ${track.abr ?? "?"}kbps] vol ${config.MUSIC_VOLUME}`);
   }
 
   _onTrackEnd() {

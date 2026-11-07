@@ -44,6 +44,10 @@ const voiceMock = {
     resources: [],
     createAudioResource: (stream, options) => {
         const resource = { stream, options };
+        if (options?.inlineVolume) {
+            resource.volume = { volume: 1, setVolume(v) { this.volume = v; } };
+            resource.encoder = { bitrate: null, setBitrate(b) { this.bitrate = b; } };
+        }
         voiceMock.resources.push(resource);
         return resource;
     },

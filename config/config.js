@@ -23,7 +23,15 @@ const config = {
   // yt-dlp가 YouTube 서명 해독에 쓸 JS 런타임. 기본값은 봇을 돌리는 node 자신.
   // 구버전 yt-dlp(2025.11 이전)라 옵션을 모르면 "none"으로 끌 수 있다.
   YTDLP_JS_RUNTIME: process.env.YTDLP_JS_RUNTIME || `node:${process.execPath}`,
+
+  // 음악 기본 볼륨 (0~1, 기본 0.7 = 70%)
+  MUSIC_VOLUME: parseVolume(process.env.MUSIC_VOLUME, 0.7),
 };
+
+function parseVolume(value, fallback) {
+  const n = Number(value);
+  return value !== undefined && value !== "" && Number.isFinite(n) && n > 0 && n <= 1 ? n : fallback;
+}
 
 /**
  * Edge TTS는 언어 코드가 아니라 로케일(ko-KR)을 사용한다.

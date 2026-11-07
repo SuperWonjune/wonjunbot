@@ -58,7 +58,7 @@ cd ~/discord/wonjunbot && git checkout master && git pull --ff-only origin maste
 5. **실제 재생이 되는가** — 음성 채널에서 `/ttsstart` 후 채팅 입력.
    **소리는 사람이 직접 들어봐야 확인된다. 자동 검증으로 대체할 수 없다.**
 6. **음악 재생이 되는가** — 음성 채널에서 `/play url:<YouTube 주소>`.
-   로그의 `[Music] 재생: ... (webm/opus)` 는 재인코딩 없는 원음 경로라는 뜻이다.
+   로그의 `[Music] 재생: ... vol 0.7` 에서 받은 포맷(opus/webm)과 적용된 볼륨을 확인할 수 있다.
 
 ### yt-dlp (음악 재생용, 최초 1회)
 
