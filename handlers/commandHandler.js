@@ -1,11 +1,13 @@
 const { REST, Routes, SlashCommandBuilder, MessageFlags } = require("discord.js");
 const config = require("../config/config");
 const { voiceProfiles, setVoiceProfile } = require("../config/voiceProfiles");
+const { parseYouTubeUrl } = require("../utils/youtubeUrl");
 
 class CommandHandler {
-    constructor(client, ttsService) {
+    constructor(client, ttsService, musicService = null) {
         this.client = client;
         this.ttsService = ttsService;
+        this.musicService = musicService;
         this.commands = [];
 
         this._defineCommands();
@@ -36,6 +38,106 @@ class CommandHandler {
             .setDescription("TTS 봇을 음성 채널에서 내보냅니다.");
 
         this.commands = [voiceCommand.toJSON(), ttsStartCommand.toJSON(), ttsStopCommand.toJSON()];
+
+        if (this.musicService) {
+            const playCommand = new SlashCommandBuilder()
+                .setName("재생")
+                .setDescription("YouTube 영상의 음악을 음성 채널에서 재생합니다.")
+                .addStringOption(option =>
+                    option.setName("url")
+                        .setDescription("YouTube 영상 주소")
+                        .setRequired(true));
+
+            const skipCommand = new SlashCommandBuilder()
+                .setName("스킵")
+                .setDescription("지금 재생 중인 곡을 건너뜁니다.");
+
+            const stopCommand = new SlashCommandBuilder()
+                .setName("정지")
+                .setDescription("음악을 멈추고 대기열을 비웁니다.");
+
+            const queueCommand = new SlashCommandBuilder()
+                .setName("대기열")
+                .setDescription("재생 중인 곡과 대기열을 보여줍니다.");
+
+            this.commands.push(playCommand.toJSON(), skipCommand.toJSON(), stopCommand.toJSON(), queueCommand.toJSON());
+        }
+    }
+
+    /**
+     * 음악 명령어 처리. 처리했으면 true
+     */
+    async _handleMusicCommand(interaction) {
+        const music = this.musicService;
+        const { commandName } = interaction;
+
+        if (commandName === "재생") {
+            const voiceChannel = interaction.member?.voice?.channel;
+            if (!voiceChannel) {
+                await interaction.reply({ content: "❌ 음성 채널에 먼저 접속해주세요.", flags: MessageFlags.Ephemeral });
+                return true;
+            }
+
+            const parsed = parseYouTubeUrl(interaction.options.getString("url"));
+            if (parsed.error) {
+                await interaction.reply({ content: `❌ ${parsed.error}`, flags: MessageFlags.Ephemeral });
+                return true;
+            }
+
+            // 영상 정보 조회에 몇 초 걸리므로 defer (모두에게 보이도록 공개 응답)
+            await interaction.deferReply();
+            try {
+                const { track, position } = await music.enqueue(interaction.guild, voiceChannel, parsed.url, interaction.user);
+                const content = position === 0
+                    ? `🎵 재생: ${music.describe(track)}\n${track.url}`
+                    : `➕ 대기열 ${position}번에 추가: ${music.describe(track)}`;
+                await interaction.editReply({ content });
+            } catch (error) {
+                console.error("[Music] /재생 실패:", error.message);
+                await interaction.editReply({ content: `❌ 재생 실패: ${error.message}` });
+            }
+            return true;
+        }
+
+        if (commandName === "스킵") {
+            const next = music.getState().queue[0];
+            const skipped = music.skip();
+            if (!skipped) {
+                await interaction.reply({ content: "❌ 재생 중인 곡이 없습니다.", flags: MessageFlags.Ephemeral });
+                return true;
+            }
+            await interaction.reply({
+                content: `⏭️ 건너뜀: **${skipped.title}**` + (next ? `\n🎵 다음 곡: ${music.describe(next)}` : "\n대기열이 비었습니다."),
+            });
+            return true;
+        }
+
+        if (commandName === "정지") {
+            const hadMusic = music.stop();
+            if (!hadMusic) {
+                await interaction.reply({ content: "❌ 재생 중인 음악이 없습니다.", flags: MessageFlags.Ephemeral });
+                return true;
+            }
+            await interaction.reply({ content: "⏹️ 음악을 멈추고 대기열을 비웠습니다." });
+            return true;
+        }
+
+        if (commandName === "대기열") {
+            const { current, queue } = music.getState();
+            if (!current && queue.length === 0) {
+                await interaction.reply({ content: "대기열이 비어 있습니다. `/재생` 으로 곡을 추가해보세요.", flags: MessageFlags.Ephemeral });
+                return true;
+            }
+            const lines = [];
+            if (current) lines.push(`🎵 **지금 재생 중**: ${music.describe(current)}`);
+            const shown = queue.slice(0, 10);
+            shown.forEach((t, i) => lines.push(`${i + 1}. ${music.describe(t)}`));
+            if (queue.length > shown.length) lines.push(`… 외 ${queue.length - shown.length}곡`);
+            await interaction.reply({ content: lines.join("\n"), flags: MessageFlags.Ephemeral });
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -68,6 +170,10 @@ class CommandHandler {
         const { commandName } = interaction;
 
         try {
+            if (this.musicService && await this._handleMusicCommand(interaction)) {
+                return;
+            }
+
             if (commandName === "voice") {
                 const indexStr = interaction.options.getString("profile");
                 const index = parseInt(indexStr, 10);

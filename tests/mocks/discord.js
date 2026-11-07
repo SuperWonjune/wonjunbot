@@ -32,7 +32,7 @@ class MockInteraction {
         this.responses.push({ type: 'reply', content: options.content, flags: options.flags });
     }
 
-    async deferReply(options) {
+    async deferReply(options = {}) {
         this.deferred = true;
         this.responses.push({ type: 'defer', flags: options.flags });
     }

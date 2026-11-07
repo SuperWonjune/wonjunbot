@@ -33,6 +33,10 @@ class TTSService {
     this.currentConnection = null; // 현재 음성 연결
     this.currentGuildId = null; // 현재 연결된 길드 ID (남은 연결 정리용)
 
+    // 같은 음성 연결을 쓰는 다른 서비스(음악 재생)와의 연동 훅
+    this.onSpeakEnd = null; // TTS 대기열을 다 읽었을 때 (연결을 돌려줄 때)
+    this.onConnectionLost = null; // 음성 연결이 사라졌을 때
+
     // 오디오 플레이어 생성
     this.player = createAudioPlayer({
       behaviors: {
@@ -88,6 +92,15 @@ class TTSService {
     if (!connection || this.currentConnection === connection) {
       this.currentConnection = null;
       this.currentVoiceChannelId = null;
+      this._notifyConnectionLost();
+    }
+  }
+
+  _notifyConnectionLost() {
+    try {
+      this.onConnectionLost?.();
+    } catch (error) {
+      console.error("[TTS] onConnectionLost 처리 중 오류:", error);
     }
   }
 
@@ -158,6 +171,7 @@ class TTSService {
       if (this.currentConnection === connection) {
         this.currentConnection = null;
         this.currentVoiceChannelId = null;
+        this._notifyConnectionLost();
         // 의도치 않은 종료 시 isActive 해제
         if (this.isActive) {
           console.log("[TTS] 비정상 종료 감지: isActive = false로 변경");
@@ -182,7 +196,7 @@ class TTSService {
 
     // 이미 다른 채널에 연결되어 있는지 확인
     if (this.currentVoiceChannelId && this.currentVoiceChannelId !== voiceChannelId) {
-      throw new Error(`이미 다른 음성 채널에 연결되어 있습니다. (현재: <#${this.currentVoiceChannelId}>) /ttsstop 으로 먼저 종료해주세요.`);
+      throw new Error(`이미 다른 음성 채널에 연결되어 있습니다. (현재: <#${this.currentVoiceChannelId}>) /ttsstop 또는 /정지 로 먼저 종료해주세요.`);
     }
 
     // 이미 해당 채널에 연결되어 있으면 재사용
@@ -356,7 +370,15 @@ class TTSService {
     if (this.playing) return;
 
     const item = this.ttsQueue.shift();
-    if (!item) return;
+    if (!item) {
+      // 읽을 게 없으면 연결을 음악 재생 쪽에 돌려준다
+      try {
+        this.onSpeakEnd?.();
+      } catch (error) {
+        console.error("[TTS] onSpeakEnd 처리 중 오류:", error);
+      }
+      return;
+    }
 
     this.playing = true;
 
@@ -392,6 +414,8 @@ class TTSService {
         inputType: StreamType.Arbitrary,
       });
 
+      // 음악이 연결을 쓰고 있었다면 TTS 플레이어로 바꿔 끼운다 (음악은 자동 일시정지)
+      this.currentConnection?.subscribe(this.player);
       this.player.play(resource);
       console.log(`[TTS] <#${voiceChannelId}>: "${text}"`);
 
@@ -443,7 +467,8 @@ class TTSService {
    * VoiceStateUpdate 이벤트 처리 (자동 퇴장 로직)
    */
   handleVoiceStateUpdate(oldState, newState) {
-    if (!this.isActive || !this.currentVoiceChannelId) return;
+    // TTS가 꺼져 있어도 음악 재생으로 채널에 남아있을 수 있으므로 연결 기준으로 판단한다
+    if (!this.currentVoiceChannelId) return;
 
     const botId = this.client.user.id;
     const channel = oldState.channel || newState.channel;

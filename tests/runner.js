@@ -26,14 +26,30 @@ const voiceMock = {
         return conn;
     },
     getVoiceConnection: (guildId) => voiceMock.connections.get(guildId) || null,
-    createAudioPlayer: () => ({
-        on: () => { },
-        play: () => { }
-    }),
-    createAudioResource: () => { },
+    // 실제 AudioPlayer처럼 stop() 시 Idle 이벤트를 동기로 발생시킨다
+    createAudioPlayer: () => {
+        const player = new EventEmitter();
+        player.state = { status: 'idle' };
+        player.play = (resource) => {
+            player.state = { status: 'playing', resource };
+        };
+        player.stop = () => {
+            if (player.state.status === 'idle') return false;
+            player.state = { status: 'idle' };
+            player.emit('idle');
+            return true;
+        };
+        return player;
+    },
+    resources: [],
+    createAudioResource: (stream, options) => {
+        const resource = { stream, options };
+        voiceMock.resources.push(resource);
+        return resource;
+    },
     AudioPlayerStatus: { Idle: 'idle' },
     NoSubscriberBehavior: { Pause: 'pause' },
-    StreamType: { Arbitrary: 'arbitrary' },
+    StreamType: { Arbitrary: 'arbitrary', WebmOpus: 'webm/opus' },
     entersState: async (connection, status) => {
         if (voiceMock.failReady && status === 'ready') {
             throw new Error("Aborted: 연결이 Ready 상태가 되지 못했습니다");
