@@ -3,6 +3,7 @@ const config = require("./config/config");
 const TTSService = require("./services/ttsService");
 const MessageHandler = require("./handlers/messageHandler");
 const CommandHandler = require("./handlers/commandHandler");
+const MusicService = require("./services/musicService");
 
 /**
  * Discord TTS 봇
@@ -23,7 +24,8 @@ const client = new Client({
 // 서비스 초기화
 const ttsService = new TTSService(client);
 const messageHandler = new MessageHandler(ttsService);
-const commandHandler = new CommandHandler(client, ttsService);
+const musicService = new MusicService(client, ttsService);
+const commandHandler = new CommandHandler(client, ttsService, musicService);
 
 // 봇 준비 완료 이벤트
 // Discord.js v14에서는 ready, v15+에서는 clientReady를 사용
@@ -87,6 +89,7 @@ client.login(config.TOKEN).catch((error) => {
 // Graceful shutdown
 process.on("SIGINT", () => {
   console.log("\n봇 종료 중...");
+  musicService.destroy();
   ttsService.destroy();
   client.destroy();
   process.exit(0);
