@@ -129,6 +129,10 @@ module.exports = async function run() {
     assert.strictEqual(resolveArgs[resolveArgs.length - 2], '--', "URL must come after -- to block option injection");
     const streamArgs = spawnFn.calls[1].args;
     assert.ok(streamArgs.includes('251') && streamArgs.includes('-'), "should stream the resolved format to stdout");
+    const infoIdx = streamArgs.indexOf('--load-info-json');
+    assert.ok(infoIdx > 0, "should reuse resolved info instead of re-fetching");
+    const infoPath = streamArgs[infoIdx + 1];
+    assert.strictEqual(JSON.parse(require('fs').readFileSync(infoPath, 'utf8')).format_id, '251');
 
     // 3. 두 번째 곡은 대기열로
     console.log("Testing /재생 queues while playing...");
@@ -153,6 +157,8 @@ module.exports = async function run() {
     await handler.handleInteraction(skipInt);
     assert.ok(skipInt.responses.some(r => r.content.includes('Song A')), "should mention skipped track");
     assert.ok(firstStream.killed, "skipped yt-dlp process should be killed");
+    await new Promise(r => setTimeout(r, 50));
+    assert.ok(!require('fs').existsSync(infoPath), "temp info json should be removed after the track ends");
     assert.strictEqual(music.getState().current.title, 'Song B', "next track should play");
     assert.strictEqual(voiceMock.resources[voiceMock.resources.length - 1].options.inputType, 'arbitrary');
 

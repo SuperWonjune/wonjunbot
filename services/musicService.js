@@ -1,4 +1,8 @@
 const { spawn } = require("child_process");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const crypto = require("crypto");
 const {
   createAudioPlayer,
   createAudioResource,
@@ -114,6 +118,8 @@ class MusicService {
             acodec: info.acodec,
             ext: info.ext,
             abr: info.abr,
+            // 스트리밍 때 그대로 넘겨 YouTube 재조회(~4초)를 건너뛴다
+            infoJson: stdout,
           });
         } catch (error) {
           reject(new Error("영상 정보를 해석하지 못했습니다."));
@@ -136,13 +142,38 @@ class MusicService {
    * 선택된 포맷의 오디오 바이트를 그대로 stdout으로 받는다
    */
   _openStream(track) {
-    const args = [...this._ytdlpBaseArgs(), "-f", track.formatId || AUDIO_FORMAT, "-o", "-", "--", track.url];
+    // 조회 결과(info json)를 재사용하면 yt-dlp가 YouTube를 다시 조회하지 않아 재생 시작이 빨라진다.
+    // (서버 실측: 재조회 시 첫 패킷까지 ~9초 → ~5초)
+    let infoPath = null;
+    let source = ["--", track.url];
+    if (track.infoJson) {
+      infoPath = path.join(os.tmpdir(), `wonjunbot-${crypto.randomUUID()}.info.json`);
+      try {
+        fs.writeFileSync(infoPath, track.infoJson);
+        source = ["--load-info-json", infoPath];
+      } catch (error) {
+        console.error("[Music] info json 저장 실패, URL로 재조회합니다:", error.message);
+        infoPath = null;
+      }
+    }
+
+    const args = [...this._ytdlpBaseArgs(), "-f", track.formatId || AUDIO_FORMAT, "-o", "-", ...source];
     const proc = this._spawnYtdlp(args);
+
+    proc.cleanup = () => {
+      if (!infoPath) return;
+      fs.rm(infoPath, { force: true }, () => { });
+      infoPath = null;
+    };
 
     let stderr = "";
     proc.stderr.on("data", (d) => { stderr += d; });
-    proc.on("error", (error) => console.error("[Music] yt-dlp 실행 오류:", error.message));
+    proc.on("error", (error) => {
+      console.error("[Music] yt-dlp 실행 오류:", error.message);
+      proc.cleanup();
+    });
     proc.on("close", (code, signal) => {
+      proc.cleanup();
       if (code && !signal) console.error(`[Music] yt-dlp 스트림 종료 (code ${code}): ${stderr.trim()}`);
     });
     // 스킵 등으로 소비자가 먼저 끊으면 EPIPE가 나는데 정상 동작이다
@@ -297,6 +328,7 @@ class MusicService {
     if (proc && proc.exitCode === null && !proc.killed) {
       proc.kill("SIGKILL");
     }
+    proc?.cleanup?.();
   }
 
   _reset() {
