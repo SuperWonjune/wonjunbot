@@ -195,7 +195,14 @@ class CommandHandler {
                     return;
                 }
 
-                // 권한 체크 등은 필요하다면 여기에 추가
+                // 음악 모드와 TTS 모드는 배타적이다 (TTS가 끼어들면 음악이 끊긴다)
+                if (this.musicService?.isBusy()) {
+                    await interaction.reply({
+                        content: "❌ 지금은 음악 재생 중이라 TTS를 켤 수 없습니다. `/정지` 로 음악을 끈 뒤 다시 시도해주세요.",
+                        flags: MessageFlags.Ephemeral
+                    });
+                    return;
+                }
 
                 try {
                     // 연결에 시간이 걸릴 수 있으므로 defer 처리

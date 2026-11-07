@@ -142,13 +142,13 @@ module.exports = async function run() {
     assert.ok(queueInt.responses.some(r => r.type === 'edit' && r.content.includes('대기열 1번')), "should report queue position");
     assert.strictEqual(music.getState().queue.length, 1);
 
-    // 4. TTS가 말하는 동안 연결을 넘기고, 끝나면 돌려받는다
-    console.log("Testing TTS handoff...");
-    ttsService.playing = true;
-    ttsService.currentConnection.subscribe(ttsService.player);
-    ttsService.playing = false;
-    await ttsService.playNextInQueue(); // 대기열이 비었으므로 onSpeakEnd 호출
-    assert.strictEqual(subscriptions[subscriptions.length - 1], music.player, "music should reclaim the connection after TTS");
+    // 4. 음악 재생 중에는 /ttsstart 를 받지 않는다 (TTS가 끼어들어 음악이 끊기지 않게)
+    console.log("Testing /ttsstart is refused while music plays...");
+    const ttsDuringMusic = new MockInteraction("ttsstart", user, guild, member);
+    await handler.handleInteraction(ttsDuringMusic);
+    assert.ok(ttsDuringMusic.responses.some(r => r.content.includes('음악 재생 중')), "should explain why TTS can't start");
+    assert.strictEqual(ttsService.isActive, false, "TTS must stay off while music plays");
+    assert.strictEqual(subscriptions[subscriptions.length - 1], music.player, "music player should keep the connection");
 
     // 5. /스킵 → 다음 곡 (m4a는 ffmpeg 경유)
     console.log("Testing /스킵...");
@@ -167,15 +167,53 @@ module.exports = async function run() {
     await handler.handleInteraction(listInt);
     assert.ok(listInt.responses[0].content.includes('Song B'), "queue should show current track");
 
-    // 7. /정지 → TTS가 꺼져 있으면 퇴장
+    // 7. 마지막 곡이 끝나면 바로 퇴장
+    console.log("Testing leave right after the queue ends...");
+    music.player.emit('idle'); // Song B 재생 완료
+    assert.strictEqual(music.isPlaying(), false);
+    assert.strictEqual(ttsService.currentVoiceChannelId, null, "should leave as soon as the queue is empty");
+
+    // 8. /정지 → 대기열 비우고 퇴장
     console.log("Testing /정지...");
+    const replayInt = new MockInteraction("재생", user, guild, member);
+    replayInt.options.data.url = URL_A;
+    await handler.handleInteraction(replayInt);
+    const queuedInt = new MockInteraction("재생", user, guild, member);
+    queuedInt.options.data.url = URL_B;
+    await handler.handleInteraction(queuedInt);
+    assert.strictEqual(music.getState().queue.length, 1);
     const stopInt = new MockInteraction("정지", user, guild, member);
     await handler.handleInteraction(stopInt);
     assert.ok(stopInt.responses.some(r => r.content.includes('멈추고')));
     assert.strictEqual(music.isPlaying(), false);
-    assert.strictEqual(ttsService.currentVoiceChannelId, null, "should leave when TTS is not active");
+    assert.strictEqual(music.getState().queue.length, 0);
+    assert.strictEqual(ttsService.currentVoiceChannelId, null, "/정지 should leave the channel");
 
-    // 8. /ttsstop 으로 연결이 사라지면 음악도 정리
+    // 9. TTS 모드에서는 /재생 을 받지 않는다
+    console.log("Testing /재생 is refused while TTS is on...");
+    const startTts = new MockInteraction("ttsstart", user, guild, member);
+    await handler.handleInteraction(startTts);
+    assert.strictEqual(ttsService.isActive, true);
+    const playDuringTts = new MockInteraction("재생", user, guild, member);
+    playDuringTts.options.data.url = URL_A;
+    const spawnCountBefore = spawnFn.calls.length;
+    await handler.handleInteraction(playDuringTts);
+    assert.ok(playDuringTts.responses.some(r => r.type === 'edit' && r.content.includes('TTS 모드')), "should explain why music can't start");
+    assert.strictEqual(music.isPlaying(), false);
+    assert.strictEqual(spawnFn.calls.length, spawnCountBefore, "should not even look up the video");
+    assert.strictEqual(ttsService.isActive, true, "TTS session must be left alone");
+    ttsService.stop();
+
+    // 10. 조회 중에 /정지 하면 그 요청은 취소된다
+    console.log("Testing /정지 cancels a pending lookup...");
+    const pendingPlay = music.enqueue(guild, voiceChannel, URL_A, user);
+    assert.ok(music.isBusy(), "a pending lookup counts as busy");
+    music.stop();
+    await assert.rejects(pendingPlay, /정지되어/);
+    assert.strictEqual(music.isPlaying(), false);
+    assert.strictEqual(ttsService.currentVoiceChannelId, null, "should not join after being stopped");
+
+    // 11. /ttsstop 으로 연결이 사라지면 음악도 정리
     console.log("Testing music reset on connection loss...");
     const againInt = new MockInteraction("재생", user, guild, member);
     againInt.options.data.url = URL_A;
@@ -184,7 +222,7 @@ module.exports = async function run() {
     ttsService.stop();
     assert.strictEqual(music.isPlaying(), false, "music should stop when the voice connection is torn down");
 
-    // 9. 오류: 영상 없음 / 음성 채널 밖 / 잘못된 URL / yt-dlp 미설치
+    // 12. 오류: 영상 없음 / 음성 채널 밖 / 잘못된 URL / yt-dlp 미설치
     console.log("Testing /재생 errors...");
     const missingInt = new MockInteraction("재생", user, guild, member);
     missingInt.options.data.url = 'https://youtu.be/zzzzzzzzzzz';

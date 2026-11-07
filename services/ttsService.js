@@ -33,9 +33,8 @@ class TTSService {
     this.currentConnection = null; // 현재 음성 연결
     this.currentGuildId = null; // 현재 연결된 길드 ID (남은 연결 정리용)
 
-    // 같은 음성 연결을 쓰는 다른 서비스(음악 재생)와의 연동 훅
-    this.onSpeakEnd = null; // TTS 대기열을 다 읽었을 때 (연결을 돌려줄 때)
-    this.onConnectionLost = null; // 음성 연결이 사라졌을 때
+    // 같은 음성 연결을 쓰는 음악 재생 서비스가 연결이 사라졌을 때 정리할 수 있게 하는 훅
+    this.onConnectionLost = null;
 
     // 오디오 플레이어 생성
     this.player = createAudioPlayer({
@@ -370,15 +369,7 @@ class TTSService {
     if (this.playing) return;
 
     const item = this.ttsQueue.shift();
-    if (!item) {
-      // 읽을 게 없으면 연결을 음악 재생 쪽에 돌려준다
-      try {
-        this.onSpeakEnd?.();
-      } catch (error) {
-        console.error("[TTS] onSpeakEnd 처리 중 오류:", error);
-      }
-      return;
-    }
+    if (!item) return;
 
     this.playing = true;
 
@@ -414,8 +405,6 @@ class TTSService {
         inputType: StreamType.Arbitrary,
       });
 
-      // 음악이 연결을 쓰고 있었다면 TTS 플레이어로 바꿔 끼운다 (음악은 자동 일시정지)
-      this.currentConnection?.subscribe(this.player);
       this.player.play(resource);
       console.log(`[TTS] <#${voiceChannelId}>: "${text}"`);
 

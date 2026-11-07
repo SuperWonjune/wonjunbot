@@ -22,10 +22,12 @@ const MAX_QUEUE = 50;
 /**
  * YouTube 음악 재생 서비스
  *
- * 디스코드 봇은 길드당 음성 연결을 하나만 가질 수 있으므로 TTS 서비스의 연결을 같이 쓴다.
- * 연결은 한 번에 플레이어 하나만 구독할 수 있어서, TTS가 말할 때는 TTS 플레이어가 연결을
- * 가져가고(음악 플레이어는 구독자가 없어 자동 일시정지), TTS가 끝나면 음악 플레이어가 다시
- * 구독해 이어서 재생된다.
+ * 음악 모드와 TTS 모드는 서로 배타적이다. TTS가 켜져 있으면 /재생을 받지 않고,
+ * 음악이 재생 중이면 /ttsstart를 받지 않는다. (TTS가 끼어들면 음악이 끊기기 때문)
+ *
+ * 디스코드 봇은 길드당 음성 연결을 하나만 가질 수 있으므로 연결 관리(입장·퇴장·자동 퇴장)는
+ * TTS 서비스의 것을 그대로 쓰고, 연결에는 음악 플레이어만 구독시킨다.
+ * 대기열이 끝나면 바로 퇴장한다.
  */
 class MusicService {
   constructor(client, ttsService, { spawnFn = spawn } = {}) {
@@ -35,7 +37,8 @@ class MusicService {
 
     this.queue = [];
     this.current = null; // { track, proc }
-    this.idleTimer = null;
+    this.pending = 0; // 영상 정보를 조회 중인 /재생 요청 수
+    this.generation = 0; // /정지·퇴장 때마다 증가. 조회 중이던 요청을 무효화한다
 
     this.player = createAudioPlayer({
       behaviors: { noSubscriber: NoSubscriberBehavior.Pause },
@@ -47,8 +50,6 @@ class MusicService {
       // error 뒤에 Idle 이벤트가 이어서 오므로 여기서는 다음 곡으로 넘기지 않는다
     });
 
-    // TTS가 말을 끝내면 연결을 돌려받는다
-    this.tts.onSpeakEnd = () => this._reclaimConnection();
     // 연결이 사라지면(/ttsstop, 자동 퇴장, 끊김) 음악도 정리한다
     this.tts.onConnectionLost = () => this._reset();
   }
@@ -191,24 +192,45 @@ class MusicService {
    * @returns {{ track, position }} position 0 = 바로 재생
    */
   async enqueue(guild, voiceChannel, url, requester) {
+    if (this.tts.isActive) {
+      throw new Error("TTS 모드가 켜져 있습니다. `/ttsstop` 으로 TTS를 끈 뒤 다시 시도해주세요.");
+    }
     if (this.queue.length >= MAX_QUEUE) {
       throw new Error(`대기열이 가득 찼습니다. (최대 ${MAX_QUEUE}곡)`);
     }
-
-    // 영상부터 확인한다. 잘못된 영상이면 채널에 들어가지 않는다.
-    const info = await this.resolve(url);
-    await this.tts.ensureVoiceConnection(guild, voiceChannel.id);
-    const track = { ...info, requester };
-
-    this._clearIdleTimer();
-
-    if (!this.current) {
-      this._play(track);
-      return { track, position: 0 };
+    // 이미 다른 채널에서 재생 중이면 조회(몇 초)를 기다리게 하지 말고 바로 알려준다
+    const busyChannel = this.tts.currentVoiceChannelId;
+    if (this.isBusy() && busyChannel && busyChannel !== voiceChannel.id) {
+      throw new Error(`다른 음성 채널(<#${busyChannel}>)에서 재생 중입니다. 그 채널에 들어가서 추가해주세요.`);
     }
 
-    this.queue.push(track);
-    return { track, position: this.queue.length };
+    const generation = this.generation;
+    this.pending++;
+    try {
+      // 영상부터 확인한다. 잘못된 영상이면 채널에 들어가지 않는다.
+      const info = await this.resolve(url);
+      // 조회하는 사이에 /정지 되었거나 누가 /ttsstart 했을 수 있다
+      if (this.generation !== generation) {
+        throw new Error("그 사이 음악이 정지되어 추가하지 않았습니다.");
+      }
+      if (this.tts.isActive) {
+        throw new Error("그 사이 TTS 모드가 켜졌습니다. `/ttsstop` 으로 TTS를 끈 뒤 다시 시도해주세요.");
+      }
+      await this.tts.ensureVoiceConnection(guild, voiceChannel.id);
+      const track = { ...info, requester };
+
+      if (!this.current) {
+        this._play(track);
+        return { track, position: 0 };
+      }
+
+      this.queue.push(track);
+      return { track, position: this.queue.length };
+    } finally {
+      this.pending--;
+      // 실패한 요청이 마지막이었고 재생 중인 곡도 없으면 채널에 남아있을 이유가 없다
+      this._leaveIfIdle();
+    }
   }
 
   skip() {
@@ -220,13 +242,13 @@ class MusicService {
   }
 
   /**
-   * 음악 정지 + 대기열 비우기. TTS가 꺼져 있으면 음성 채널에서도 나간다.
+   * 음악 정지 + 대기열 비우기 + 음성 채널 퇴장
    * @returns {boolean} 정지할 것이 있었는지
    */
   stop() {
-    const hadMusic = !!this.current || this.queue.length > 0;
+    const hadMusic = this.isBusy();
     this._reset();
-    if (!this.tts.isActive && this.tts.hasSession()) {
+    if (hadMusic && !this.tts.isActive && this.tts.hasSession()) {
       this.tts.stop();
     }
     return hadMusic;
@@ -238,6 +260,13 @@ class MusicService {
 
   isPlaying() {
     return !!this.current;
+  }
+
+  /**
+   * 재생 중이거나 /재생 요청을 처리 중이면 true (이때는 /ttsstart를 막는다)
+   */
+  isBusy() {
+    return !!this.current || this.queue.length > 0 || this.pending > 0;
   }
 
   describe(track) {
@@ -263,7 +292,7 @@ class MusicService {
 
     this.current = { track, proc };
     this.player.play(resource);
-    this._reclaimConnection();
+    this.tts.currentConnection?.subscribe(this.player);
 
     console.log(`[Music] 재생: ${track.title} [${track.formatId} ${track.acodec}/${track.ext} ${track.abr ?? "?"}kbps] (${inputType})`);
   }
@@ -284,43 +313,17 @@ class MusicService {
       return;
     }
 
-    // 대기열 끝: 연결을 TTS에게 돌려주고, TTS도 꺼져 있으면 잠시 뒤 퇴장
-    this._handBackToTts();
-    this._scheduleIdleLeave();
+    // 대기열 끝: 바로 퇴장
+    this._leaveIfIdle();
   }
 
   /**
-   * 음악이 재생 중이고 TTS가 말하고 있지 않으면 연결을 음악 플레이어가 가져간다
+   * 재생할 곡도, 조회 중인 요청도 없으면 음성 채널에서 나간다
    */
-  _reclaimConnection() {
-    if (!this.current || this.tts.playing) return;
-    const connection = this.tts.currentConnection;
-    if (connection) connection.subscribe(this.player);
-  }
-
-  _handBackToTts() {
-    const connection = this.tts.currentConnection;
-    if (connection) connection.subscribe(this.tts.player);
-  }
-
-  _scheduleIdleLeave() {
-    this._clearIdleTimer();
-    if (this.tts.isActive) return;
-    this.idleTimer = setTimeout(() => {
-      this.idleTimer = null;
-      if (!this.current && !this.tts.isActive && this.tts.hasSession()) {
-        console.log("[Music] 대기열이 끝난 뒤 유휴 상태가 지속되어 퇴장합니다.");
-        this.tts.stop();
-      }
-    }, config.MUSIC_IDLE_LEAVE_MS);
-    this.idleTimer.unref?.();
-  }
-
-  _clearIdleTimer() {
-    if (this.idleTimer) {
-      clearTimeout(this.idleTimer);
-      this.idleTimer = null;
-    }
+  _leaveIfIdle() {
+    if (this.isBusy() || this.tts.isActive || !this.tts.hasSession()) return;
+    console.log("[Music] 대기열이 끝나 음성 채널에서 퇴장합니다.");
+    this.tts.stop();
   }
 
   _killCurrent() {
@@ -332,7 +335,7 @@ class MusicService {
   }
 
   _reset() {
-    this._clearIdleTimer();
+    this.generation++;
     this.queue = [];
     if (this.current) {
       this._killCurrent();
@@ -344,7 +347,6 @@ class MusicService {
       } finally {
         this.resetting = false;
       }
-      this._handBackToTts();
     }
   }
 

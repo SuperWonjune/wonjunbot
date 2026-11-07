@@ -23,9 +23,6 @@ const config = {
   // yt-dlp가 YouTube 서명 해독에 쓸 JS 런타임. 기본값은 봇을 돌리는 node 자신.
   // 구버전 yt-dlp(2025.11 이전)라 옵션을 모르면 "none"으로 끌 수 있다.
   YTDLP_JS_RUNTIME: process.env.YTDLP_JS_RUNTIME || `node:${process.execPath}`,
-
-  // 대기열이 끝난 뒤 (TTS도 꺼져 있으면) 음성 채널에서 나가기까지 기다리는 시간
-  MUSIC_IDLE_LEAVE_MS: Number(process.env.MUSIC_IDLE_LEAVE_MS) || 5 * 60 * 1000,
 };
 
 /**
