@@ -22,7 +22,7 @@ const MAX_QUEUE = 50;
 /**
  * YouTube 음악 재생 서비스
  *
- * 음악 모드와 TTS 모드는 서로 배타적이다. TTS가 켜져 있으면 /재생을 받지 않고,
+ * 음악 모드와 TTS 모드는 서로 배타적이다. TTS가 켜져 있으면 /play를 받지 않고,
  * 음악이 재생 중이면 /ttsstart를 받지 않는다. (TTS가 끼어들면 음악이 끊기기 때문)
  *
  * 디스코드 봇은 길드당 음성 연결을 하나만 가질 수 있으므로 연결 관리(입장·퇴장·자동 퇴장)는
@@ -37,8 +37,8 @@ class MusicService {
 
     this.queue = [];
     this.current = null; // { track, proc }
-    this.pending = 0; // 영상 정보를 조회 중인 /재생 요청 수
-    this.generation = 0; // /정지·퇴장 때마다 증가. 조회 중이던 요청을 무효화한다
+    this.pending = 0; // 영상 정보를 조회 중인 /play 요청 수
+    this.generation = 0; // /stop·퇴장 때마다 증가. 조회 중이던 요청을 무효화한다
 
     this.player = createAudioPlayer({
       behaviors: { noSubscriber: NoSubscriberBehavior.Pause },
@@ -209,7 +209,7 @@ class MusicService {
     try {
       // 영상부터 확인한다. 잘못된 영상이면 채널에 들어가지 않는다.
       const info = await this.resolve(url);
-      // 조회하는 사이에 /정지 되었거나 누가 /ttsstart 했을 수 있다
+      // 조회하는 사이에 /stop 되었거나 누가 /ttsstart 했을 수 있다
       if (this.generation !== generation) {
         throw new Error("그 사이 음악이 정지되어 추가하지 않았습니다.");
       }
@@ -263,7 +263,7 @@ class MusicService {
   }
 
   /**
-   * 재생 중이거나 /재생 요청을 처리 중이면 true (이때는 /ttsstart를 막는다)
+   * 재생 중이거나 /play 요청을 처리 중이면 true (이때는 /ttsstart를 막는다)
    */
   isBusy() {
     return !!this.current || this.queue.length > 0 || this.pending > 0;

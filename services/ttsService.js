@@ -195,7 +195,7 @@ class TTSService {
 
     // 이미 다른 채널에 연결되어 있는지 확인
     if (this.currentVoiceChannelId && this.currentVoiceChannelId !== voiceChannelId) {
-      throw new Error(`이미 다른 음성 채널에 연결되어 있습니다. (현재: <#${this.currentVoiceChannelId}>) /ttsstop 또는 /정지 로 먼저 종료해주세요.`);
+      throw new Error(`이미 다른 음성 채널에 연결되어 있습니다. (현재: <#${this.currentVoiceChannelId}>) /ttsstop 또는 /stop 으로 먼저 종료해주세요.`);
     }
 
     // 이미 해당 채널에 연결되어 있으면 재사용

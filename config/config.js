@@ -17,7 +17,7 @@ const config = {
   // TTS 언어 설정 (기본값: 한국어)
   TTS_LANG: process.env.TTS_LANG || "ko",
 
-  // 음악 재생(/재생)에 쓰는 yt-dlp 실행 파일 경로 (기본: PATH의 yt-dlp)
+  // 음악 재생(/play)에 쓰는 yt-dlp 실행 파일 경로 (기본: PATH의 yt-dlp)
   YTDLP_PATH: process.env.YTDLP_PATH || "yt-dlp",
 
   // yt-dlp가 YouTube 서명 해독에 쓸 JS 런타임. 기본값은 봇을 돌리는 node 자신.

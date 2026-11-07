@@ -41,7 +41,7 @@ class CommandHandler {
 
         if (this.musicService) {
             const playCommand = new SlashCommandBuilder()
-                .setName("재생")
+                .setName("play")
                 .setDescription("YouTube 영상의 음악을 음성 채널에서 재생합니다.")
                 .addStringOption(option =>
                     option.setName("url")
@@ -53,7 +53,7 @@ class CommandHandler {
                 .setDescription("지금 재생 중인 곡을 건너뜁니다.");
 
             const stopCommand = new SlashCommandBuilder()
-                .setName("정지")
+                .setName("stop")
                 .setDescription("음악을 멈추고 대기열을 비웁니다.");
 
             const queueCommand = new SlashCommandBuilder()
@@ -71,7 +71,7 @@ class CommandHandler {
         const music = this.musicService;
         const { commandName } = interaction;
 
-        if (commandName === "재생") {
+        if (commandName === "play") {
             const voiceChannel = interaction.member?.voice?.channel;
             if (!voiceChannel) {
                 await interaction.reply({ content: "❌ 음성 채널에 먼저 접속해주세요.", flags: MessageFlags.Ephemeral });
@@ -93,7 +93,7 @@ class CommandHandler {
                     : `➕ 대기열 ${position}번에 추가: ${music.describe(track)}`;
                 await interaction.editReply({ content });
             } catch (error) {
-                console.error("[Music] /재생 실패:", error.message);
+                console.error("[Music] /play 실패:", error.message);
                 await interaction.editReply({ content: `❌ 재생 실패: ${error.message}` });
             }
             return true;
@@ -112,7 +112,7 @@ class CommandHandler {
             return true;
         }
 
-        if (commandName === "정지") {
+        if (commandName === "stop") {
             const hadMusic = music.stop();
             if (!hadMusic) {
                 await interaction.reply({ content: "❌ 재생 중인 음악이 없습니다.", flags: MessageFlags.Ephemeral });
@@ -125,7 +125,7 @@ class CommandHandler {
         if (commandName === "대기열") {
             const { current, queue } = music.getState();
             if (!current && queue.length === 0) {
-                await interaction.reply({ content: "대기열이 비어 있습니다. `/재생` 으로 곡을 추가해보세요.", flags: MessageFlags.Ephemeral });
+                await interaction.reply({ content: "대기열이 비어 있습니다. `/play` 로 곡을 추가해보세요.", flags: MessageFlags.Ephemeral });
                 return true;
             }
             const lines = [];
@@ -198,7 +198,7 @@ class CommandHandler {
                 // 음악 모드와 TTS 모드는 배타적이다 (TTS가 끼어들면 음악이 끊긴다)
                 if (this.musicService?.isBusy()) {
                     await interaction.reply({
-                        content: "❌ 지금은 음악 재생 중이라 TTS를 켤 수 없습니다. `/정지` 로 음악을 끈 뒤 다시 시도해주세요.",
+                        content: "❌ 지금은 음악 재생 중이라 TTS를 켤 수 없습니다. `/stop` 으로 음악을 끈 뒤 다시 시도해주세요.",
                         flags: MessageFlags.Ephemeral
                     });
                     return;

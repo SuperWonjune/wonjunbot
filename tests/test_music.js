@@ -100,10 +100,10 @@ module.exports = async function run() {
     const music = new MusicService(client, ttsService, { spawnFn });
     const handler = new CommandHandler(client, ttsService, music);
 
-    assert.ok(handler.commands.some(c => c.name === '재생'), "/재생 command should be registered");
+    assert.ok(handler.commands.some(c => c.name === 'play'), "/play command should be registered");
 
-    // 2. /재생 → 음성 채널 입장 + 바로 재생 (webm/opus는 재인코딩 없이)
-    console.log("Testing /재생 starts playback...");
+    // 2. /play → 음성 채널 입장 + 바로 재생 (webm/opus는 재인코딩 없이)
+    console.log("Testing /play starts playback...");
     const subscriptions = [];
     const origEnsure = ttsService.ensureVoiceConnection.bind(ttsService);
     ttsService.ensureVoiceConnection = async (...args) => {
@@ -112,7 +112,7 @@ module.exports = async function run() {
         return result;
     };
 
-    const playInt = new MockInteraction("재생", user, guild, member);
+    const playInt = new MockInteraction("play", user, guild, member);
     playInt.options.data.url = 'https://youtu.be/aaaaaaaaaaa';
     voiceMock.resources.length = 0;
     await handler.handleInteraction(playInt);
@@ -135,8 +135,8 @@ module.exports = async function run() {
     assert.strictEqual(JSON.parse(require('fs').readFileSync(infoPath, 'utf8')).format_id, '251');
 
     // 3. 두 번째 곡은 대기열로
-    console.log("Testing /재생 queues while playing...");
-    const queueInt = new MockInteraction("재생", user, guild, member);
+    console.log("Testing /play queues while playing...");
+    const queueInt = new MockInteraction("play", user, guild, member);
     queueInt.options.data.url = URL_B;
     await handler.handleInteraction(queueInt);
     assert.ok(queueInt.responses.some(r => r.type === 'edit' && r.content.includes('대기열 1번')), "should report queue position");
@@ -173,28 +173,28 @@ module.exports = async function run() {
     assert.strictEqual(music.isPlaying(), false);
     assert.strictEqual(ttsService.currentVoiceChannelId, null, "should leave as soon as the queue is empty");
 
-    // 8. /정지 → 대기열 비우고 퇴장
-    console.log("Testing /정지...");
-    const replayInt = new MockInteraction("재생", user, guild, member);
+    // 8. /stop → 대기열 비우고 퇴장
+    console.log("Testing /stop...");
+    const replayInt = new MockInteraction("play", user, guild, member);
     replayInt.options.data.url = URL_A;
     await handler.handleInteraction(replayInt);
-    const queuedInt = new MockInteraction("재생", user, guild, member);
+    const queuedInt = new MockInteraction("play", user, guild, member);
     queuedInt.options.data.url = URL_B;
     await handler.handleInteraction(queuedInt);
     assert.strictEqual(music.getState().queue.length, 1);
-    const stopInt = new MockInteraction("정지", user, guild, member);
+    const stopInt = new MockInteraction("stop", user, guild, member);
     await handler.handleInteraction(stopInt);
     assert.ok(stopInt.responses.some(r => r.content.includes('멈추고')));
     assert.strictEqual(music.isPlaying(), false);
     assert.strictEqual(music.getState().queue.length, 0);
-    assert.strictEqual(ttsService.currentVoiceChannelId, null, "/정지 should leave the channel");
+    assert.strictEqual(ttsService.currentVoiceChannelId, null, "/stop should leave the channel");
 
-    // 9. TTS 모드에서는 /재생 을 받지 않는다
-    console.log("Testing /재생 is refused while TTS is on...");
+    // 9. TTS 모드에서는 /play 를 받지 않는다
+    console.log("Testing /play is refused while TTS is on...");
     const startTts = new MockInteraction("ttsstart", user, guild, member);
     await handler.handleInteraction(startTts);
     assert.strictEqual(ttsService.isActive, true);
-    const playDuringTts = new MockInteraction("재생", user, guild, member);
+    const playDuringTts = new MockInteraction("play", user, guild, member);
     playDuringTts.options.data.url = URL_A;
     const spawnCountBefore = spawnFn.calls.length;
     await handler.handleInteraction(playDuringTts);
@@ -204,8 +204,8 @@ module.exports = async function run() {
     assert.strictEqual(ttsService.isActive, true, "TTS session must be left alone");
     ttsService.stop();
 
-    // 10. 조회 중에 /정지 하면 그 요청은 취소된다
-    console.log("Testing /정지 cancels a pending lookup...");
+    // 10. 조회 중에 /stop 하면 그 요청은 취소된다
+    console.log("Testing /stop cancels a pending lookup...");
     const pendingPlay = music.enqueue(guild, voiceChannel, URL_A, user);
     assert.ok(music.isBusy(), "a pending lookup counts as busy");
     music.stop();
@@ -215,7 +215,7 @@ module.exports = async function run() {
 
     // 11. /ttsstop 으로 연결이 사라지면 음악도 정리
     console.log("Testing music reset on connection loss...");
-    const againInt = new MockInteraction("재생", user, guild, member);
+    const againInt = new MockInteraction("play", user, guild, member);
     againInt.options.data.url = URL_A;
     await handler.handleInteraction(againInt);
     assert.ok(music.isPlaying());
@@ -223,20 +223,20 @@ module.exports = async function run() {
     assert.strictEqual(music.isPlaying(), false, "music should stop when the voice connection is torn down");
 
     // 12. 오류: 영상 없음 / 음성 채널 밖 / 잘못된 URL / yt-dlp 미설치
-    console.log("Testing /재생 errors...");
-    const missingInt = new MockInteraction("재생", user, guild, member);
+    console.log("Testing /play errors...");
+    const missingInt = new MockInteraction("play", user, guild, member);
     missingInt.options.data.url = 'https://youtu.be/zzzzzzzzzzz';
     await handler.handleInteraction(missingInt);
     assert.ok(missingInt.responses.some(r => r.type === 'edit' && r.content.includes('재생할 수 없는 영상')));
     assert.strictEqual(music.isPlaying(), false);
     ttsService.stop();
 
-    const noVoiceInt = new MockInteraction("재생", user, guild, { voice: { channel: null } });
+    const noVoiceInt = new MockInteraction("play", user, guild, { voice: { channel: null } });
     noVoiceInt.options.data.url = URL_A;
     await handler.handleInteraction(noVoiceInt);
     assert.ok(noVoiceInt.responses.some(r => r.content.includes('음성 채널에 먼저')));
 
-    const badUrlInt = new MockInteraction("재생", user, guild, member);
+    const badUrlInt = new MockInteraction("play", user, guild, member);
     badUrlInt.options.data.url = 'https://example.com/song.mp3';
     await handler.handleInteraction(badUrlInt);
     assert.ok(badUrlInt.responses.some(r => r.type === 'reply' && r.content.includes('YouTube 주소만')));
