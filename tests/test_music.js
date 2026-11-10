@@ -118,6 +118,7 @@ module.exports = async function run() {
     await handler.handleInteraction(playInt);
 
     assert.ok(playInt.responses.some(r => r.type === 'edit' && r.content.includes('Song A')), "should announce the track");
+    assert.ok(playInt.responses.every(r => !/Opus|kbps/.test(r.content || '')), "announcement should not show codec/bitrate");
     assert.strictEqual(ttsService.currentVoiceChannelId, "vm", "should join the member's channel");
     assert.strictEqual(ttsService.isActive, false, "music must not turn on chat TTS");
     assert.strictEqual(music.getState().current.title, 'Song A');

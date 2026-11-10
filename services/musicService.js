@@ -270,9 +270,7 @@ class MusicService {
   }
 
   describe(track) {
-    const quality = track.acodec === "opus" ? "Opus" : (track.acodec || "").split(".")[0];
-    const kbps = track.abr ? ` ${Math.round(track.abr)}kbps` : "";
-    return `**${track.title}** (${formatDuration(track.duration)})${quality ? ` · ${quality}${kbps}` : ""}`;
+    return `**${track.title}** (${formatDuration(track.duration)})`;
   }
 
   /* ------------------------------------------------------------------ */
