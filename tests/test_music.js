@@ -102,7 +102,7 @@ module.exports = async function run() {
 
     assert.ok(handler.commands.some(c => c.name === 'play'), "/play command should be registered");
 
-    // 2. /play → 음성 채널 입장 + 바로 재생 (기본 볼륨 50%)
+    // 2. /play → 음성 채널 입장 + 바로 재생 (기본 볼륨 25%)
     console.log("Testing /play starts playback...");
     const subscriptions = [];
     const origEnsure = ttsService.ensureVoiceConnection.bind(ttsService);
@@ -121,7 +121,7 @@ module.exports = async function run() {
     assert.strictEqual(ttsService.currentVoiceChannelId, "vm", "should join the member's channel");
     assert.strictEqual(ttsService.isActive, false, "music must not turn on chat TTS");
     assert.strictEqual(music.getState().current.title, 'Song A');
-    assert.strictEqual(voiceMock.resources[0].volume.volume, 0.5, "music should play at 50% volume by default");
+    assert.strictEqual(voiceMock.resources[0].volume.volume, 0.25, "music should play at 25% volume by default");
     assert.strictEqual(voiceMock.resources[0].encoder.bitrate, 128000, "re-encode at a high bitrate to keep quality");
     assert.strictEqual(subscriptions[subscriptions.length - 1], music.player, "music player should own the connection");
 

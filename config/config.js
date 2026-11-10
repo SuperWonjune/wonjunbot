@@ -24,8 +24,8 @@ const config = {
   // 구버전 yt-dlp(2025.11 이전)라 옵션을 모르면 "none"으로 끌 수 있다.
   YTDLP_JS_RUNTIME: process.env.YTDLP_JS_RUNTIME || `node:${process.execPath}`,
 
-  // 음악 기본 볼륨 (0~1, 기본 0.5 = 50%)
-  MUSIC_VOLUME: parseVolume(process.env.MUSIC_VOLUME, 0.5),
+  // 음악 기본 볼륨 (0~1, 기본 0.25 = 25%)
+  MUSIC_VOLUME: parseVolume(process.env.MUSIC_VOLUME, 0.25),
 };
 
 function parseVolume(value, fallback) {
